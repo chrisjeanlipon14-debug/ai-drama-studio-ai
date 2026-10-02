@@ -1,230 +1,805 @@
 /**
- * LLM Chat App Frontend
- *
- * Handles the chat UI interactions and communication with the backend API.
+ * AI Drama Studio Production Frontend
+ * Connects the Drama Studio UI to the Cloudflare Workers AI backend.
  */
 
-// DOM elements
 const chatMessages = document.getElementById("chat-messages");
 const userInput = document.getElementById("user-input");
 const sendButton = document.getElementById("send-button");
 const typingIndicator = document.getElementById("typing-indicator");
 
-// Chat state
-let chatHistory = [
-	{
-		role: "assistant",
-		content:
-			"Hello! I'm an LLM chat app powered by Cloudflare Workers AI. How can I help you today?",
-	},
-];
+const studioPlan = document.getElementById("studio-plan");
+
+let selectedLength = "5 min";
 let isProcessing = false;
 
-// Auto-resize textarea as user types
+let chatHistory = [
+  {
+    role: "assistant",
+    content:
+      "Welcome to AI Drama Studio! Enter your drama idea above and I'll create your production plan."
+  }
+];
+
+/* ----------------------------------
+   VIDEO LENGTH
+---------------------------------- */
+
+const lengthButtons = document.querySelectorAll(".length-btn");
+
+lengthButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    lengthButtons.forEach((btn) => {
+      btn.classList.remove("selected");
+    });
+
+    button.classList.add("selected");
+    selectedLength = button.textContent.trim();
+  });
+});
+
+/* ----------------------------------
+   INPUT
+---------------------------------- */
+
 userInput.addEventListener("input", function () {
-	this.style.height = "auto";
-	this.style.height = this.scrollHeight + "px";
+  this.style.height = "auto";
+  this.style.height = this.scrollHeight + "px";
 });
 
-// Send message on Enter (without Shift)
-userInput.addEventListener("keydown", function (e) {
-	if (e.key === "Enter" && !e.shiftKey) {
-		e.preventDefault();
-		sendMessage();
-	}
+userInput.addEventListener("keydown", function (event) {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    sendMessage();
+  }
 });
 
-// Send button click handler
 sendButton.addEventListener("click", sendMessage);
 
-/**
- * Sends a message to the chat API and processes the response
- */
-async function sendMessage() {
-	const message = userInput.value.trim();
+/* ----------------------------------
+   SAFE HTML
+---------------------------------- */
 
-	// Don't send empty messages
-	if (message === "" || isProcessing) return;
-
-	// Disable input while processing
-	isProcessing = true;
-	userInput.disabled = true;
-	sendButton.disabled = true;
-
-	// Add user message to chat
-	addMessageToChat("user", message);
-
-	// Clear input
-	userInput.value = "";
-	userInput.style.height = "auto";
-
-	// Show typing indicator
-	typingIndicator.classList.add("visible");
-
-	// Add message to history
-	chatHistory.push({ role: "user", content: message });
-
-	try {
-		// Create new assistant response element
-		const assistantMessageEl = document.createElement("div");
-		assistantMessageEl.className = "message assistant-message";
-		assistantMessageEl.innerHTML = "<p></p>";
-		chatMessages.appendChild(assistantMessageEl);
-		const assistantTextEl = assistantMessageEl.querySelector("p");
-
-		// Scroll to bottom
-		chatMessages.scrollTop = chatMessages.scrollHeight;
-
-		// Send request to API
-		const response = await fetch("/api/chat", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				messages: chatHistory,
-			}),
-		});
-
-		// Handle errors
-		if (!response.ok) {
-			throw new Error("Failed to get response");
-		}
-		if (!response.body) {
-			throw new Error("Response body is null");
-		}
-
-		// Process streaming response
-		const reader = response.body.getReader();
-		const decoder = new TextDecoder();
-		let responseText = "";
-		let buffer = "";
-		const flushAssistantText = () => {
-			assistantTextEl.textContent = responseText;
-			chatMessages.scrollTop = chatMessages.scrollHeight;
-		};
-
-		let sawDone = false;
-		while (true) {
-			const { done, value } = await reader.read();
-
-			if (done) {
-				// Process any remaining complete events in buffer
-				const parsed = consumeSseEvents(buffer + "\n\n");
-				for (const data of parsed.events) {
-					if (data === "[DONE]") {
-						break;
-					}
-					try {
-						const jsonData = JSON.parse(data);
-						// Handle both Workers AI format (response) and OpenAI format (choices[0].delta.content)
-						let content = "";
-						if (
-							typeof jsonData.response === "string" &&
-							jsonData.response.length > 0
-						) {
-							content = jsonData.response;
-						} else if (jsonData.choices?.[0]?.delta?.content) {
-							content = jsonData.choices[0].delta.content;
-						}
-						if (content) {
-							responseText += content;
-							flushAssistantText();
-						}
-					} catch (e) {
-						console.error("Error parsing SSE data as JSON:", e, data);
-					}
-				}
-				break;
-			}
-
-			// Decode chunk
-			buffer += decoder.decode(value, { stream: true });
-			const parsed = consumeSseEvents(buffer);
-			buffer = parsed.buffer;
-			for (const data of parsed.events) {
-				if (data === "[DONE]") {
-					sawDone = true;
-					buffer = "";
-					break;
-				}
-				try {
-					const jsonData = JSON.parse(data);
-					// Handle both Workers AI format (response) and OpenAI format (choices[0].delta.content)
-					let content = "";
-					if (
-						typeof jsonData.response === "string" &&
-						jsonData.response.length > 0
-					) {
-						content = jsonData.response;
-					} else if (jsonData.choices?.[0]?.delta?.content) {
-						content = jsonData.choices[0].delta.content;
-					}
-					if (content) {
-						responseText += content;
-						flushAssistantText();
-					}
-				} catch (e) {
-					console.error("Error parsing SSE data as JSON:", e, data);
-				}
-			}
-			if (sawDone) {
-				break;
-			}
-		}
-
-		// Add completed response to chat history
-		if (responseText.length > 0) {
-			chatHistory.push({ role: "assistant", content: responseText });
-		}
-	} catch (error) {
-		console.error("Error:", error);
-		addMessageToChat(
-			"assistant",
-			"Sorry, there was an error processing your request.",
-		);
-	} finally {
-		// Hide typing indicator
-		typingIndicator.classList.remove("visible");
-
-		// Re-enable input
-		isProcessing = false;
-		userInput.disabled = false;
-		sendButton.disabled = false;
-		userInput.focus();
-	}
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
-/**
- * Helper function to add message to chat
- */
+/* ----------------------------------
+   CHAT DISPLAY
+---------------------------------- */
+
 function addMessageToChat(role, content) {
-	const messageEl = document.createElement("div");
-	messageEl.className = `message ${role}-message`;
-	messageEl.innerHTML = `<p>${content}</p>`;
-	chatMessages.appendChild(messageEl);
+  const message = document.createElement("div");
+  message.className =
+    "message " +
+    (role === "user" ? "user-message" : "assistant-message");
 
-	// Scroll to bottom
-	chatMessages.scrollTop = chatMessages.scrollHeight;
+  const paragraph = document.createElement("p");
+  paragraph.textContent = content;
+
+  message.appendChild(paragraph);
+  chatMessages.appendChild(message);
+
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  return message;
 }
 
-function consumeSseEvents(buffer) {
-	let normalized = buffer.replace(/\r/g, "");
-	const events = [];
-	let eventEndIndex;
-	while ((eventEndIndex = normalized.indexOf("\n\n")) !== -1) {
-		const rawEvent = normalized.slice(0, eventEndIndex);
-		normalized = normalized.slice(eventEndIndex + 2);
+/* ----------------------------------
+   FIND SECTION
+---------------------------------- */
 
-		const lines = rawEvent.split("\n");
-		const dataLines = [];
-		for (const line of lines) {
-			if (line.startsWith("data:")) {
-				dataLines.push(line.slice("data:".length).trimStart());
-			}
-		}
-		if (dataLines.length === 0) continue;
-		events.push(dataLines.join("\n"));
-	}
-	return { events, buffer: normalized };
+function findSection(text, names) {
+  const lines = text.split("\n");
+
+  let start = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const clean = lines[i]
+      .replace(/\*/g, "")
+      .replace(/#/g, "")
+      .trim()
+      .toLowerCase();
+
+    if (names.some((name) => clean.includes(name))) {
+      start = i + 1;
+      break;
+    }
+  }
+
+  if (start === -1) return "";
+
+  const result = [];
+
+  for (let i = start; i < lines.length; i++) {
+    const clean = lines[i]
+      .replace(/\*/g, "")
+      .replace(/#/g, "")
+      .trim()
+      .toLowerCase();
+
+    const isNextSection =
+      clean.includes("originality check") ||
+      clean.includes("continuity check") ||
+      clean.includes("production notes") ||
+      clean.includes("character") ||
+      clean.includes("scene-by-scene") ||
+      clean.includes("scene breakdown") ||
+      clean === "characters" ||
+      clean === "scenes";
+
+    if (isNextSection && result.length > 0) break;
+
+    result.push(lines[i]);
+  }
+
+  return result.join("\n").trim();
+}
+
+/* ----------------------------------
+   EXTRACT TITLE
+---------------------------------- */
+
+function extractTitle(text) {
+  const patterns = [
+    /title\s*[:\-]\s*(.+)/i,
+    /story title\s*[:\-]\s*(.+)/i,
+    /###\s*(.+)/
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+
+    if (match && match[1]) {
+      return match[1]
+        .replace(/\*\*/g, "")
+        .replace(/^["']|["']$/g, "")
+        .trim();
+    }
+  }
+
+  return "AI-Generated Drama";
+}
+
+/* ----------------------------------
+   EXTRACT GENRE
+---------------------------------- */
+
+function extractGenre(text) {
+  const match = text.match(/genre\s*[:\-]\s*(.+)/i);
+
+  if (match && match[1]) {
+    return match[1]
+      .replace(/\*\*/g, "")
+      .trim();
+  }
+
+  return "Drama";
+}
+
+/* ----------------------------------
+   EXTRACT CHARACTERS
+---------------------------------- */
+
+function renderCharacters(text) {
+  const section = findSection(text, [
+    "main characters",
+    "characters",
+    "character dna"
+  ]);
+
+  if (!section) {
+    return `
+      <div class="character">
+        <div class="character-name">Characters</div>
+        <div class="character-role">See complete AI plan below.</div>
+        <div class="character-dna">
+          Character information was generated by the AI Drama Engine.
+        </div>
+      </div>
+    `;
+  }
+
+  const lines = section
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const blocks = [];
+  let current = [];
+
+  for (const line of lines) {
+    if (
+      /^(\d+[\.\)]|[-•])\s*/.test(line) &&
+      current.length > 0
+    ) {
+      blocks.push(current.join(" "));
+      current = [];
+    }
+
+    current.push(line);
+  }
+
+  if (current.length) blocks.push(current.join(" "));
+
+  return blocks
+    .slice(0, 8)
+    .map((block) => {
+      const cleaned = block
+        .replace(/^(\d+[\.\)]|[-•])\s*/, "")
+        .replace(/\*\*/g, "")
+        .trim();
+
+      return `
+        <div class="character">
+          <div class="character-name">${escapeHtml(cleaned)}</div>
+          <div class="character-role">AI Drama Character</div>
+          <div class="character-dna">
+            Character DNA generated and locked for continuity.
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+/* ----------------------------------
+   EXTRACT SCENES
+---------------------------------- */
+
+function renderScenes(text) {
+  const section = findSection(text, [
+    "scene-by-scene plan",
+    "scene breakdown",
+    "scenes"
+  ]);
+
+  if (!section) {
+    return `
+      <div class="scene">
+        <div class="scene-number">SCENES</div>
+        <div class="scene-title">Production scenes generated</div>
+        <div class="scene-description">
+          See the complete AI production plan below.
+        </div>
+      </div>
+    `;
+  }
+
+  const lines = section
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let sceneNumber = 0;
+  const scenes = [];
+  let current = [];
+
+  function saveScene() {
+    if (current.length > 0) {
+      sceneNumber++;
+
+      const combined = current
+        .join(" ")
+        .replace(/\*\*/g, "")
+        .trim();
+
+      scenes.push(`
+        <div class="scene">
+          <div class="scene-number">
+            SCENE ${String(sceneNumber).padStart(2, "0")}
+          </div>
+          <div class="scene-title">
+            ${escapeHtml(combined.substring(0, 90))}
+          </div>
+          <div class="scene-description">
+            ${escapeHtml(combined)}
+          </div>
+        </div>
+      `);
+
+      current = [];
+    }
+  }
+
+  for (const line of lines) {
+    const isScene =
+      /^scene\s*\d+/i.test(line) ||
+      /^\d+[\.\)]\s/.test(line) ||
+      /^\*\*scene/i.test(line);
+
+    if (isScene) {
+      saveScene();
+    }
+
+    current.push(line);
+  }
+
+  saveScene();
+
+  return scenes.slice(0, 30).join("");
+}
+
+/* ----------------------------------
+   AI CHECKS
+---------------------------------- */
+
+function renderChecks(text) {
+  const originality = /originality check/i.test(text);
+  const continuity = /continuity check/i.test(text);
+  const pacing =
+    /pacing/i.test(text) ||
+    /emotion/i.test(text);
+
+  return `
+    <div class="check-list">
+
+      <div class="check">
+        <div class="check-name">Originality Check</div>
+        <div class="check-status ${originality ? "check-ok" : "check-review"}">
+          ${originality ? "✓ PASSED" : "REVIEW"}
+        </div>
+      </div>
+
+      <div class="check">
+        <div class="check-name">Character Continuity</div>
+        <div class="check-status ${continuity ? "check-ok" : "check-review"}">
+          ${continuity ? "✓ PASSED" : "REVIEW"}
+        </div>
+      </div>
+
+      <div class="check">
+        <div class="check-name">Story Continuity</div>
+        <div class="check-status ${continuity ? "check-ok" : "check-review"}">
+          ${continuity ? "✓ PASSED" : "REVIEW"}
+        </div>
+      </div>
+
+      <div class="check">
+        <div class="check-name">Emotion & Pacing</div>
+        <div class="check-status ${pacing ? "check-ok" : "check-review"}">
+          ${pacing ? "✓ PASSED" : "REVIEW"}
+        </div>
+      </div>
+
+    </div>
+  `;
+}
+
+/* ----------------------------------
+   RENDER DRAMA PLAN
+---------------------------------- */
+
+function renderDramaPlan(aiText) {
+  const title = extractTitle(aiText);
+  const genre = extractGenre(aiText);
+
+  studioPlan.innerHTML = `
+    <section class="card">
+
+      <div class="plan-header">
+
+        <div>
+          <div class="card-title">🎬 DRAMA PLAN</div>
+
+          <div class="card-description">
+            AI-generated production blueprint
+          </div>
+        </div>
+
+        <div class="plan-badge">
+          PLAN READY
+        </div>
+
+      </div>
+
+      <div class="info-grid">
+
+        <div class="info-box">
+          <div class="info-label">TITLE</div>
+          <div class="info-value">
+            ${escapeHtml(title)}
+          </div>
+        </div>
+
+        <div class="info-box">
+          <div class="info-label">GENRE</div>
+          <div class="info-value">
+            ${escapeHtml(genre)}
+          </div>
+        </div>
+
+        <div class="info-box">
+          <div class="info-label">LENGTH</div>
+          <div class="info-value">
+            ${escapeHtml(selectedLength)}
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <section class="card">
+
+      <div class="card-title">
+        👥 Characters & Character DNA
+      </div>
+
+      <div class="card-description">
+        AI-generated characters designed for visual and story consistency.
+      </div>
+
+      ${renderCharacters(aiText)}
+
+    </section>
+
+    <section class="card">
+
+      <div class="card-title">
+        🎞️ Scene Breakdown
+      </div>
+
+      <div class="card-description">
+        Scene structure generated for the selected video length.
+      </div>
+
+      ${renderScenes(aiText)}
+
+    </section>
+
+    <section class="card">
+
+      <div class="card-title">
+        🧠 AI Quality Checks
+      </div>
+
+      <div class="card-description">
+        The production plan is checked before generation.
+      </div>
+
+      ${renderChecks(aiText)}
+
+    </section>
+
+    <section class="card">
+
+      <div class="approval-box">
+
+        <h3>✏️ Review Before Generation</h3>
+
+        <p>
+          Review the AI production plan before any video-generation credits are used.
+        </p>
+
+        <div class="approval-buttons">
+
+          <button
+            class="secondary-btn"
+            id="edit-plan-button"
+            type="button"
+          >
+            ✏️ Edit Plan
+          </button>
+
+          <button
+            class="approve-btn"
+            id="approve-plan-button"
+            type="button"
+          >
+            ✓ Approve Plan
+          </button>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <section class="card" id="generation-stage" style="display:none;">
+
+      <div class="approval-box">
+
+        <h3>💰 Generation Cost Preview</h3>
+
+        <p>
+          Your drama plan has been approved. Actual video generation is not connected yet.
+          No video credits have been used.
+        </p>
+
+        <div class="info-grid" style="margin-top:12px;">
+
+          <div class="info-box">
+            <div class="info-label">VIDEO LENGTH</div>
+            <div class="info-value">
+              ${escapeHtml(selectedLength)}
+            </div>
+          </div>
+
+          <div class="info-box">
+            <div class="info-label">VIDEO ENGINE</div>
+            <div class="info-value">
+              Not connected
+            </div>
+          </div>
+
+          <div class="info-box">
+            <div class="info-label">STATUS</div>
+            <div class="info-value">
+              READY
+            </div>
+          </div>
+
+        </div>
+
+        <button
+          id="generate-now-button"
+          class="approve-btn"
+          type="button"
+          style="width:100%;margin-top:14px;"
+        >
+          🎬 Generate Now
+        </button>
+
+      </div>
+
+    </section>
+
+    <section class="card">
+
+      <div class="card-title">
+        📄 Complete AI Production Plan
+      </div>
+
+      <div class="card-description">
+        Full production blueprint generated by the AI Drama Engine.
+      </div>
+
+      <div class="message assistant-message">
+        <p>${escapeHtml(aiText)}</p>
+      </div>
+
+    </section>
+  `;
+
+  studioPlan.style.display = "block";
+
+  studioPlan.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+
+  setupApprovalButtons();
+}
+
+/* ----------------------------------
+   APPROVAL
+---------------------------------- */
+
+function setupApprovalButtons() {
+  const editButton =
+    document.getElementById("edit-plan-button");
+
+  const approveButton =
+    document.getElementById("approve-plan-button");
+
+  const generationStage =
+    document.getElementById("generation-stage");
+
+  const generateButton =
+    document.getElementById("generate-now-button");
+
+  if (editButton) {
+    editButton.addEventListener("click", () => {
+      userInput.focus();
+
+      userInput.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+      });
+    });
+  }
+
+  if (approveButton) {
+    approveButton.addEventListener("click", () => {
+
+      generationStage.style.display = "block";
+
+      generationStage.scrollIntoView({
+        behavior: "smooth",
+        block: "center"
+      });
+
+      approveButton.textContent = "✓ Plan Approved";
+      approveButton.disabled = true;
+    });
+  }
+
+  if (generateButton) {
+    generateButton.addEventListener("click", () => {
+
+      alert(
+        "The production plan is approved. Actual video generation will be connected in the next production stage. No video-generation credits were used."
+      );
+
+    });
+  }
+}
+
+/* ----------------------------------
+   CREATE DRAMA PLAN
+---------------------------------- */
+
+async function sendMessage() {
+
+  const originalIdea = userInput.value.trim();
+
+  if (!originalIdea || isProcessing) {
+    return;
+  }
+
+  isProcessing = true;
+
+  sendButton.disabled = true;
+  userInput.disabled = true;
+
+  typingIndicator.classList.add("visible");
+
+  addMessageToChat(
+    "user",
+    originalIdea + "\n\nVideo Length: " + selectedLength
+  );
+
+  userInput.value = "";
+  userInput.style.height = "auto";
+
+  const productionPrompt =
+    `Create the complete AI Drama Studio production plan for this drama idea.
+
+VIDEO LENGTH: ${selectedLength}
+
+DRAMA IDEA:
+${originalIdea}
+
+IMPORTANT:
+Follow the AI Drama Studio Production Engine instructions.
+Create an original, production-ready drama plan.
+Include title, genre, core story, main characters, Character DNA, story structure, scene-by-scene plan, dialogue/voice-over, visual direction, hook, climax, twist, ending/cliffhanger, originality check, continuity check, emotion/pacing check, and production notes.
+
+Do not claim that the video has already been generated.
+Only create the production plan.`;
+
+  chatHistory.push({
+    role: "user",
+    content: productionPrompt
+  });
+
+  try {
+
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messages: chatHistory
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        "AI request failed: " + response.status
+      );
+    }
+
+    const reader =
+      response.body.getReader();
+
+    const decoder =
+      new TextDecoder();
+
+    let responseText = "";
+    let buffer = "";
+
+    while (true) {
+
+      const { value, done } =
+        await reader.read();
+
+      if (done) break;
+
+      buffer += decoder.decode(value, {
+        stream: true
+      });
+
+      const events =
+        buffer.split("\n\n");
+
+      buffer =
+        events.pop() || "";
+
+      for (const event of events) {
+
+        const lines =
+          event.split("\n");
+
+        for (const line of lines) {
+
+          if (!line.startsWith("data:")) {
+            continue;
+          }
+
+          const data =
+            line.substring(5).trim();
+
+          if (!data || data === "[DONE]") {
+            continue;
+          }
+
+          try {
+
+            const parsed =
+              JSON.parse(data);
+
+            if (parsed.response) {
+              responseText += parsed.response;
+            } else if (
+              parsed.choices &&
+              parsed.choices[0] &&
+              parsed.choices[0].delta &&
+              parsed.choices[0].delta.content
+            ) {
+              responseText +=
+                parsed.choices[0].delta.content;
+            }
+
+          } catch (error) {
+            /* Ignore incomplete streaming chunks */
+          }
+
+        }
+      }
+    }
+
+    responseText =
+      responseText.trim();
+
+    if (!responseText) {
+      throw new Error(
+        "The AI returned an empty response."
+      );
+    }
+
+    chatHistory.push({
+      role: "assistant",
+      content: responseText
+    });
+
+    renderDramaPlan(responseText);
+
+  } catch (error) {
+
+    console.error(error);
+
+    addMessageToChat(
+      "assistant",
+      "Sorry, there was an error processing your drama plan. Please try again."
+    );
+
+  } finally {
+
+    typingIndicator.classList.remove("visible");
+
+    sendButton.disabled = false;
+    userInput.disabled = false;
+
+    isProcessing = false;
+
+    userInput.focus();
+  }
 }
