@@ -151,8 +151,8 @@ Make the story unpredictable and avoid common recycled AI drama plots.
     if (!response.ok) {
       throw new Error("AI request failed");
     }
-
-    const rawText = await response.text();
+let fullText = "";
+const rawText = await response.text();
 
 const lines = rawText.split(/\r?\n/);
 
