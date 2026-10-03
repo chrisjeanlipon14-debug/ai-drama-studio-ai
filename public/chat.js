@@ -109,7 +109,22 @@ ${language?.value || "tagalog"}
 
 VISUAL VISION:
 ${visualVision?.value || "cinematic"}
+STYLE ENFORCEMENT:
+The selected Character Style is mandatory and must be followed throughout the entire production plan.
+Do not replace, ignore, or reinterpret the selected Character Style.
 
+The selected Language is mandatory for all dialogue, voice-over, narration, titles, and text.
+Do not switch languages unless the user explicitly requests it.
+
+The selected Visual Vision is mandatory for the overall visual direction, atmosphere, lighting, environment, camera language, and scene presentation.
+
+Maintain the selected Character Style, Language, and Visual Vision consistently across every scene.
+
+If the selected Character Style is Blocky / Roblox-inspired, use a clearly blocky, game-like visual universe for characters, environments, props, and scene descriptions. Do not describe realistic human characters unless explicitly requested.
+
+If the selected Character Style is 3D Cartoon, Anime-inspired, Cute Animation, or Cinematic Stylized, maintain that exact visual direction throughout the entire drama.
+
+Never substitute a generic cinematic style for the user's selected style.
 IMPORTANT REQUIREMENTS:
 
 1. Create an original title.
