@@ -94,7 +94,7 @@ async function createDramaPlan() {
   const productionPrompt = `
 You are the AI Drama Studio Production Engine.
 
-Create a COMPLETE original AI drama production plan.
+Create ONLY the OPENING SCENE of the drama first.
 
 DRAMA IDEA:
 ${idea}
@@ -125,38 +125,65 @@ If the selected Character Style is Blocky / Roblox-inspired, use a clearly block
 If the selected Character Style is 3D Cartoon, Anime-inspired, Cute Animation, or Cinematic Stylized, maintain that exact visual direction throughout the entire drama.
 
 Never substitute a generic cinematic style for the user's selected style.
-IMPORTANT REQUIREMENTS:
+FIRST CREATION STAGE:
 
-1. Create an original title.
-2. Create the genre and tone.
-3. Create the core story.
-4. Create the main characters.
-5. Give each main character Character DNA:
-   - appearance
-   - age
-   - personality
-   - clothing
-   - relationships
-   - emotional traits
-6. Create the story structure.
-7. Break the story into scenes that fit the requested length.
-8. Include dialogue or voice-over.
-9. Include visual direction for every scene.
-10. Include camera, lighting, action and emotion.
-11. Create a strong opening hook.
-12. Create a climax.
-13. Include an unexpected but meaningful twist.
-14. Create a satisfying ending or cliffhanger.
-15. Check originality.
-16. Check character and story continuity.
-17. Check emotional pacing.
-18. Add production notes for AI video generation.
+Generate ONLY these three things:
+
+1. DRAMA TITLE
+Create one original, memorable title that matches the drama idea, selected language, character style, and visual vision.
+
+2. COVER CONCEPT
+Create a cinematic cover concept for the drama.
+Include:
+- main character(s)
+- character appearance and style
+- pose and emotion
+- environment/background
+- lighting
+- atmosphere
+- important visual element
+- title placement
+- cover composition
+The cover must follow the selected Character Style and Visual Vision exactly.
+
+3. OPENING SCENE
+Create ONLY the opening scene.
+Include:
+- opening hook
+- characters present
+- location
+- action
+- emotion
+- dialogue or voice-over
+- camera direction
+- lighting
+- atmosphere
+- approximate duration
+
+Do NOT generate the full story yet.
+Do NOT generate later scenes.
+Do NOT generate the climax, twist, ending, continuity check, or full production notes yet.
+
+The selected Character Style, Language, and Visual Vision must be followed consistently.
 
 Do NOT generate the actual video.
 
-Return a production-ready drama plan.
+Return ONLY:
+TITLE
+COVER CONCEPT
+OPENING SCENE
+
 Make the story unpredictable and avoid common recycled AI drama plots.
-`;
+FINAL OUTPUT FORMAT:
+
+Return ONLY these three sections:
+
+TITLE
+COVER CONCEPT
+OPENING SCENE
+
+Do not include the full drama plan.
+Do not include later scenes.
 
   try {
     const response = await fetch("/api/chat", {
