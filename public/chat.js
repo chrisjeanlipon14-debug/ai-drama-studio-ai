@@ -152,46 +152,34 @@ Make the story unpredictable and avoid common recycled AI drama plots.
       throw new Error("AI request failed");
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
+    const rawText = await response.text();
 
-    let fullText = "";
+const lines = rawText.split(/\r?\n/);
 
-    while (true) {
-      const { value, done } = await reader.read();
+for (const line of lines) {
+  if (!line.startsWith("data:")) continue;
 
-      if (done) break;
+  const data = line.slice(5).trim();
 
-      const chunk = decoder.decode(value, { stream: true });
+  if (!data || data === "[DONE]") continue;
 
-      const lines = chunk.split("\n");
+  try {
+    const parsed = JSON.parse(data);
 
-      for (const line of lines) {
-        if (!line.startsWith("data:")) continue;
+    const text =
+      parsed.response ||
+      parsed.choices?.[0]?.delta?.content ||
+      "";
 
-        const data = line.slice(5).trim();
-
-        if (!data || data === "[DONE]") continue;
-
-        try {
-          const parsed = JSON.parse(data);
-
-          const text =
-            parsed.response ||
-            parsed.choices?.[0]?.delta?.content ||
-            "";
-
-          if (text) {
-            fullText += text;
-          }
-        } catch (error) {
-          // Ignore non-JSON streaming lines
-        }
-      }
+    if (text) {
+      fullText += text;
     }
-
-    if (!fullText.trim()) {
-      throw new Error("No AI response received");
+  } catch (error) {
+    // Ignore non-JSON streaming lines
+  }
+}
+     if (!fullText.trim()) {
+       throw new Error("No AI response received");
     }
 
     showPlan(fullText);
