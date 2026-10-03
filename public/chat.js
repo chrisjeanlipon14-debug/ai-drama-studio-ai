@@ -4,6 +4,9 @@ const typingIndicator = document.getElementById("typing-indicator");
 const studioPlan = document.getElementById("studio-plan");
 
 let selectedLength = "5 min";
+const characterStyle = document.getElementById("character-style");
+const language = document.getElementById("language");
+const visualVision = document.getElementById("visual-vision");
 let isProcessing = false;
 
 const lengthButtons = document.querySelectorAll(".length-btn, .length-button, .length-option");
@@ -98,6 +101,14 @@ ${idea}
 
 VIDEO LENGTH:
 ${selectedLength}
+CHARACTER STYLE:
+${characterStyle?.value || "realistic"}
+
+LANGUAGE:
+${language?.value || "tagalog"}
+
+VISUAL VISION:
+${visualVision?.value || "cinematic"}
 
 IMPORTANT REQUIREMENTS:
 
