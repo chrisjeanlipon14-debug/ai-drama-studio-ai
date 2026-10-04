@@ -86,7 +86,7 @@ content.innerHTML = `
   </div>`;
  const approveButton = document.createElement("button");
 
-approveButton.type = "button";
+ approveButton.type = "button";
 approveButton.textContent = "✅ Approve Opening Scene";
 
 approveButton.addEventListener("click", () => {
