@@ -94,7 +94,7 @@ approveButton.addEventListener("click", () => {
 });
 
 studioPlan.appendChild(approveButton);
-  
+} 
   
 async function createDramaPlan() {
   if (isProcessing) return;
