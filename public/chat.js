@@ -61,7 +61,28 @@ function showPlan(text) {
   `;
 
   const content = studioPlan.querySelector(".plan-content");
-  content.textContent = text;
+const titleMatch = text.match(/\*{0,2}TITLE\*{0,2}\s*([\s\S]*?)(?=\*{0,2}COVER CONCEPT\*{0,2})/i);
+const coverMatch = text.match(/\*{0,2}COVER CONCEPT\*{0,2}\s*([\s\S]*?)(?=\*{0,2}OPENING SCENE\*{0,2})/i);
+const openingMatch = text.match(/\*{0,2}OPENING SCENE\*{0,2}\s*([\s\S]*)/i);
+
+const title = titleMatch?.[1]?.trim() || "";
+const cover = coverMatch?.[1]?.trim() || "";
+const opening = openingMatch?.[1]?.trim() || "";
+
+content.innerHTML = `
+  <div class="stage-section">
+    <h3>🎬 TITLE</h3>
+    <div>${title}</div>
+  </div>
+
+  <div class="stage-section">
+    <h3>🖼️ COVER CONCEPT</h3>
+    <div>${cover}</div>
+  </div>
+
+  <div class="stage-section">
+    <h3>🎥 OPENING SCENE</h3>
+    <div>${opening}
 
   const approveButton = document.getElementById("approve-plan");
 
