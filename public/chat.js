@@ -75,12 +75,23 @@ content.innerHTML = `
   </div>`;
  const approveButton = document.createElement("button");
 
- approveButton.type = "button";
+approveButton.type = "button";
 approveButton.textContent = "✅ Approve Opening Scene";
 
-approveButton.addEventListener("click", () => {
+approveButton.style.display = "block";
+approveButton.style.width = "100%";
+approveButton.style.padding = "14px";
+approveButton.style.marginTop = "16px";
+approveButton.style.cursor = "pointer";
+approveButton.style.touchAction = "manipulation";
+approveButton.style.position = "relative";
+approveButton.style.zIndex = "9999";
+approveButton.style.pointerEvents = "auto";
+
+approveButton.onclick = function () {
+  isProcessing = false;
   generateFullDramaPlan();
-});
+};
 
 studioPlan.appendChild(approveButton);
 } 
