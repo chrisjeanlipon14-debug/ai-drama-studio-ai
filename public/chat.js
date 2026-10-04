@@ -184,7 +184,7 @@ OPENING SCENE
 
 Do not include the full drama plan.
 Do not include later scenes.
-
+`;
   try {
     const response = await fetch("/api/chat", {
       method: "POST",
