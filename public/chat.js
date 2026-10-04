@@ -83,54 +83,19 @@ content.innerHTML = `
     <div class="stage-section">
     <h3>🎥 OPENING SCENE</h3>
     <div>${opening}</div>
-  </div>
-  `;
+  </div>`;
+ const approveButton = document.createElement("button");
+
+approveButton.type = "button";
+approveButton.textContent = "✅ Approve Opening Scene";
+
+approveButton.addEventListener("click", () => {
+  generateFullDramaPlan();
+});
+
+studioPlan.appendChild(approveButton);
   
-  const approveButton = document.getElementById("approve-plan");
-
-if (approveButton) {
-  approveButton.addEventListener("click", () => {
-    const costPreview = document.createElement("div");
-
-    costPreview.className = "approval-box";
-
-    costPreview.innerHTML = `
-      <h3>💳 Generation Cost Preview</h3>
-
-      <p>
-        Your drama plan has been approved.
-        Review the estimated generation cost before continuing.
-      </p>
-
-      <p>
-        <strong>⏱️ Video Length:</strong> ${selectedLength}
-      </p>
-
-      <p>
-        <strong>🤖 Estimated AI Generation:</strong>
-        Preview only — actual video generation is not connected yet.
-      </p>
-
-      <button id="generate-now" type="button">
-        🎬 Generate Now
-      </button>
-    `;
-
-    studioPlan.appendChild(costPreview);
-
-    const generateButton = document.getElementById("generate-now");
-
-    if (generateButton) {
-      generateButton.addEventListener("click", () => {
-        alert(
-          "Generation Ready!\n\nActual video generation will be connected in the next stage."
-        );
-      });
-    }
-  });
-}
-}
-
+  
 async function createDramaPlan() {
   if (isProcessing) return;
 
@@ -159,7 +124,7 @@ ${idea}
 VIDEO LENGTH:
 ${selectedLength}
 CHARACTER STYLE:
-${characterStyle?.value || "realistic"}
+${characterStyle?.value || "realistic"} in
 
 LANGUAGE:
 ${language?.value || "tagalog"}
