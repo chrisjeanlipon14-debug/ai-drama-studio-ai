@@ -46,17 +46,6 @@ function showPlan(text) {
 
       <div class="plan-content"></div>
 
-      <div class="approval-box">
-        <h3>🔍 Review Before Generation</h3>
-        <p>
-          Review the drama plan first. No video will be generated
-          until you approve it.
-        </p>
-
-        <button id="approve-plan" type="button">
-          ✅ Approve Drama Plan
-        </button>
-      </div>
     </div>
   `;
 
