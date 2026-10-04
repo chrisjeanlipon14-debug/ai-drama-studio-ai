@@ -312,9 +312,222 @@ for (const line of lines) {
   }
 }
 
-if (sendButton) {
+async function generateFullDramaPlan() {
+  if (isProcessing) return;
+
+  isProcessing = true;
+  showLoading(true);
+
+  const idea = userInput.value.trim();
+
+  const fullPlanPrompt = `
+You are the AI Drama Studio Production Engine.
+
+The user has already reviewed and APPROVED the opening scene.
+
+Now create the COMPLETE DRAMA PRODUCTION PLAN.
+
+DRAMA IDEA:
+${idea}
+
+VIDEO LENGTH:
+${selectedLength}
+
+CHARACTER STYLE:
+${characterStyle?.value || "realistic"}
+
+LANGUAGE:
+${language?.value || "tagalog"}
+
+VISUAL VISION:
+${visualVision?.value || "cinematic"}
+
+Create an ORIGINAL drama.
+
+CHARACTER DNA:
+Define every main character's:
+- name
+- age
+- appearance
+- hairstyle
+- clothing
+- personality
+- emotional traits
+- relationships
+
+CHARACTER LOCK:
+Keep each character visually and emotionally consistent throughout all scenes.
+
+STORY STRUCTURE:
+Create the complete story from beginning to ending.
+
+SCENES:
+Break the drama into numbered scenes appropriate for the selected video length.
+
+For every scene include:
+- scene number
+- location
+- characters
+- action
+- emotion
+- dialogue or voice-over
+- camera direction
+- lighting
+- atmosphere
+- approximate duration
+
+CONTINUITY CHECK:
+Make sure characters, clothing, locations, timeline, relationships and story events remain consistent.
+
+ORIGINALITY CHECK:
+Avoid recycled AI drama plots, predictable twists and copied story structures.
+
+EMOTION AND PACING:
+Keep the story engaging and emotionally progressive.
+Avoid unnecessary scenes or repetitive dialogue.
+
+ENDING:
+Create a satisfying and meaningful ending with a strong emotional payoff.
+If appropriate, include a memorable twist.
+
+IMPORTANT:
+Do NOT generate the actual video.
+
+RETURN ONLY:
+TITLE
+CHARACTER DNA
+STORY WORLD
+COMPLETE SCENE PLAN
+CONTINUITY CHECK
+ORIGINALITY CHECK
+EMOTION & PACING CHECK
+CLIMAX
+TWIST
+ENDING
+`;
+
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "user",
+            content: fullPlanPrompt
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error("AI request failed");
+    }
+
+    let fullText = "";
+    const rawText = await response.text();
+    const lines = rawText.split(/\r?\n/);
+
+    for (const line of lines) {
+      if (!line.startsWith("data:")) continue;
+
+      const data = line.slice(5).trim();
+
+      if (!data || data === "[DONE]") continue;
+
+      try {
+        const parsed = JSON.parse(data);
+
+        const text =
+          parsed.response ||
+          parsed.choices?.[0]?.delta?.content ||
+          "";
+
+        if (text) {
+          fullText += text;
+        }
+      } catch (error) {
+        // Ignore non-JSON streaming lines
+      }
+    }
+
+    if (!fullText.trim()) {
+      throw new Error("No AI response received");
+    }
+
+    if (studioPlan) {
+      studioPlan.style.display = "block";
+
+      studioPlan.innerHTML = `
+        <div class="plan-card">
+          <h2>🎬 COMPLETE DRAMA PLAN</h2>
+
+          <div class="plan-meta">
+            <span>⏱️ ${selectedLength}</span>
+            <span>🤖 AI Production Engine</span>
+          </div>
+
+          <div class="plan-content"></div>
+
+          <div class="approval-box">
+            <h3>🔍 Review Before Generation</h3>
+            <p>
+              Review the complete drama plan first.
+              No video will be generated until you approve it.
+            </p>
+
+            <button id="approve-full-plan" type="button">
+              ✅ Approve Full Drama Plan
+            </button>
+          </div>
+        </div>
+      `;
+
+      const content = studioPlan.querySelector(".plan-content");
+
+      if (content) {
+        content.textContent = fullText;
+      }
+
+      const approveFullButton =
+        document.getElementById("approve-full-plan");
+
+      if (approveFullButton) {
+        approveFullButton.addEventListener("click", () => {
+          alert(
+            "Full Drama Plan Approved!\\n\\nNext step: Generation Cost Preview."
+          );
+        });
+      }
+
+      studioPlan.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    }
+
+  } catch (error) {
+    console.error(error);
+
+    if (studioPlan) {
+      studioPlan.style.display = "block";
+
+      studioPlan.innerHTML = `
+        <div class="plan-card">
+          <h2>⚠️ Something went wrong</h2>
+          <p>Please try generating the full drama plan again.</p>
+        </div>
+      `;
+    }
+
+  } finally {
+    isProcessing = false;
+    showLoading(false);
+  }
+        }
   sendButton.addEventListener("click", createDramaPlan);
-}
 
 if (userInput) {
   userInput.addEventListener("keydown", (event) => {
