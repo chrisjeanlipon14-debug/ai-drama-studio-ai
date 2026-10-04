@@ -137,7 +137,9 @@ If the selected Character Style is 3D Cartoon, Anime-inspired, Cute Animation, o
 
 Never substitute a generic cinematic style for the user's selected style.
 FIRST CREATION STAGE:
-
+OPENING SCENE APPROVAL RULE:
+The opening scene must be reviewed and approved by the user before the full drama plan is generated.
+Do not generate the full drama plan until the user explicitly approves the opening scene.
 Generate ONLY these three things:
 
 1. DRAMA TITLE
