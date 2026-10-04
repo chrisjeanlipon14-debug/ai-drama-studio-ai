@@ -80,12 +80,13 @@ content.innerHTML = `
     <div>${cover}</div>
   </div>
 
-  <div class="stage-section">
+    <div class="stage-section">
     <h3>🎥 OPENING SCENE</h3>
-    <div>${opening}
-
+    <div>${opening}</div>
+  </div>
+  `;
+  
   const approveButton = document.getElementById("approve-plan");
-
   if (approveButton) {
     approveButton.addEventListener("click", () => {
       alert(
