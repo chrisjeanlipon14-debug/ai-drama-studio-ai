@@ -1,173 +1,234 @@
-/**
- * LLM Chat Application Template
- *
- * A simple chat application using Cloudflare Workers AI.
- * This template demonstrates how to implement an LLM-powered chat interface with
- * streaming responses using Server-Sent Events (SSE).
- *
- * @license MIT
- */
-import { Env, ChatMessage } from "./types";
+interface Env {
+  AI: any;
+  ASSETS?: {
+    fetch: (request: Request) => Promise<Response>;
+  };
+}
 
-// Model ID for Workers AI model
-// https://developers.cloudflare.com/workers-ai/models/
-const MODEL_ID = "@cf/meta/llama-3.1-8b-instruct-fp8";
-
-// Default system prompt
+const MODEL_ID = "@cf/zai-org/glm-4.7-flash";
 
 const SYSTEM_PROMPT = `
 You are the AI Drama Studio Production Engine.
 
-Your job is NOT to behave like a generic chatbot. Your job is to turn the user's drama idea into an original, production-ready AI drama plan.
+Your job is to help create ORIGINAL AI drama productions.
 
-The user will provide a drama idea and preferably a video length such as 1, 3, 5, 10, 20 minutes, or a custom length.
+Never copy an existing movie, drama, creator, or copyrighted story.
 
-If the user does not provide a video length, ask for the desired length before creating the final plan.
+Maintain:
+- Character consistency
+- Visual consistency
+- Timeline consistency
+- Location consistency
+- Emotional continuity
+- Dialogue continuity
+- Selected character style
+- Selected language
+- Selected visual vision
 
-For every approved drama plan, create:
+The user may request:
+1. Opening Scene
+2. Full Drama Plan
+3. Production Pack
 
-1. DRAMA TITLE
-2. GENRE
-3. VIDEO LENGTH
-4. CORE STORY
-5. MAIN CHARACTERS
-6. CHARACTER DNA
-   - appearance
-   - age
-   - personality
-   - clothing/style
-   - relationships
-   - important visual traits
-7. STORY STRUCTURE
-   - Hook
-   - Setup
-   - Conflict
-   - Rising tension
-   - Climax
-   - Twist
-   - Ending or Cliffhanger
-8. SCENE-BY-SCENE PLAN
-   For every scene include:
-   - scene number
-   - location
-   - characters
-   - action
-   - emotion
-   - dialogue or voice-over
-   - camera direction
-   - lighting/visual direction
-9. DIALOGUE / VOICE-OVER
-10. VISUAL STYLE
-11. HOOK
-12. CLIMAX
-13. TWIST
-14. ENDING / CLIFFHANGER
-15. ORIGINALITY CHECK
-16. CONTINUITY CHECK
-17. PRODUCTION NOTES
+For Opening Scene requests, create ONLY:
+TITLE
+COVER CONCEPT
+OPENING SCENE
 
-ORIGINALITY RULES:
-Create genuinely original premises, conflicts, structures, twists and endings. Do not simply change character names from familiar stories. Avoid copying existing movies, dramas, viral stories or common AI drama plots.
+For Full Drama Plan requests, create:
+TITLE
+CHARACTERS
+CHARACTER DNA
+STORY SUMMARY
+SCENE-BY-SCENE PLAN
+DIALOGUE
+CAMERA
+LIGHTING
+EMOTION
+CONTINUITY NOTES
+ORIGINALITY CHECK
+PACING CHECK
+ENDING / CLIFFHANGER
 
-CHARACTER CONSISTENCY:
-Keep every character's appearance, age, clothing, personality, relationships and important visual traits consistent across all scenes.
+For Production Pack requests, create production-ready scene prompts.
 
-CONTINUITY RULES:
-Check timeline, locations, relationships, clothing, objects, dialogue and events for contradictions.
-
-EMOTION AND PACING:
-Every scene must have a purpose. Avoid filler and repetitive scenes. Build curiosity, emotional tension and momentum. The opening must immediately create interest.
-
-AI VIDEO PRODUCTION:
-Write scenes so they can later be converted into AI-generated video prompts. Include clear actions, emotions, camera direction and visual details.
-
-IMPORTANT:
-Do not claim that a video has already been generated. You are creating the drama PLAN only. Video generation happens only after the user approves the final plan.
-
-If the user's idea is too common, improve the premise, conflict, structure or ending to make it more distinctive while preserving the user's core idea.
-
-Return the result in a clean, organized format that is easy for a creator to review and approve.
+Make every story original, emotional, cinematic, memorable, and suitable for AI video generation.
 `;
-export default {
-	/**
-	 * Main request handler for the Worker
-	 */
-	async fetch(
-		request: Request,
-		env: Env,
-		ctx: ExecutionContext,
-	): Promise<Response> {
-		const url = new URL(request.url);
 
-		// Handle static assets (frontend)
-		if (url.pathname === "/" || !url.pathname.startsWith("/api/")) {
-			return env.ASSETS.fetch(request);
-		}
-
-		// API Routes
-		if (url.pathname === "/api/chat") {
-			// Handle POST requests for chat
-			if (request.method === "POST") {
-				return handleChatRequest(request, env);
-			}
-
-			// Method not allowed for other request types
-			return new Response("Method not allowed", { status: 405 });
-		}
-
-		// Handle 404 for unmatched routes
-		return new Response("Not found", { status: 404 });
-	},
-} satisfies ExportedHandler<Env>;
-
-/**
- * Handles chat API requests
- */
-async function handleChatRequest(
-	request: Request,
-	env: Env,
-): Promise<Response> {
-	try {
-		// Parse JSON request body
-		const { messages = [] } = (await request.json()) as {
-			messages: ChatMessage[];
-		};
-
-		// Add system prompt if not present
-		if (!messages.some((msg) => msg.role === "system")) {
-			messages.unshift({ role: "system", content: SYSTEM_PROMPT });
-		}
-
-		const inputs = {
-			messages,
-			max_tokens: 4096,
-			stream: true,
-		} satisfies AiTextGenerationInput & { stream: true };
-
-		const stream = await env.AI.run<typeof MODEL_ID>(MODEL_ID, inputs, {
-			// Uncomment to use AI Gateway
-			// gateway: {
-			//   id: "YOUR_GATEWAY_ID", // Replace with your AI Gateway ID
-			//   skipCache: false,      // Set to true to bypass cache
-			//   cacheTtl: 3600,        // Cache time-to-live in seconds
-			// },
-		});
-
-		return new Response(stream, {
-			headers: {
-				"content-type": "text/event-stream; charset=utf-8",
-				"cache-control": "no-cache",
-				connection: "keep-alive",
-			},
-		});
-	} catch (error) {
-		console.error("Error processing chat request:", error);
-		return new Response(
-			JSON.stringify({ error: "Failed to process request" }),
-			{
-				status: 500,
-				headers: { "content-type": "application/json" },
-			},
-		);
-	}
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    },
+  });
 }
+
+async function handleChat(request: Request, env: Env) {
+  const body = await request.json() as {
+    messages?: Array<{
+      role: string;
+      content: string;
+    }>;
+  };
+
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+
+  const result = await env.AI.run(MODEL_ID, {
+    messages: [
+      {
+        role: "system",
+        content: SYSTEM_PROMPT,
+      },
+      ...messages.map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: String(m.content || ""),
+      })),
+    ],
+  });
+
+  return new Response(JSON.stringify(result), {
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
+async function handleVideo(request: Request, env: Env) {
+  const body = await request.json() as {
+    prompt?: string;
+    duration?: number;
+    resolution?: string;
+    aspect_ratio?: string;
+    draft?: boolean;
+  };
+
+  const prompt = String(body.prompt || "").trim();
+
+  if (!prompt) {
+    return json({
+      success: false,
+      error: "Video prompt is required.",
+    }, 400);
+  }
+
+  const duration = Math.min(
+    20,
+    Math.max(1, Number(body.duration || 5))
+  );
+
+  const resolution =
+    body.resolution === "1080p" ? "1080p" : "720p";
+
+  const aspectRatio =
+    typeof body.aspect_ratio === "string"
+      ? body.aspect_ratio
+      : "16:9";
+
+  const draft =
+    typeof body.draft === "boolean"
+      ? body.draft
+      : true;
+
+  try {
+    const result = await env.AI.run("pruna/p-video", {
+      prompt,
+      duration,
+      resolution,
+      aspect_ratio: aspectRatio,
+      draft,
+      save_audio: true,
+      prompt_upsampling: true,
+    });
+
+    return json({
+      success: true,
+      model: "pruna/p-video",
+      duration,
+      resolution,
+      draft,
+      result,
+    });
+  } catch (error) {
+    return json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : String(error),
+    }, 500);
+  }
+}
+
+export default {
+  async fetch(
+    request: Request,
+    env: Env
+  ): Promise<Response> {
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        },
+      });
+    }
+
+    const url = new URL(request.url);
+
+    // AI Drama Studio chat / drama planning
+    if (
+      request.method === "POST" &&
+      url.pathname === "/api/chat"
+    ) {
+      try {
+        return await handleChat(request, env);
+      } catch (error) {
+        return json({
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error),
+        }, 500);
+      }
+    }
+
+    // AI Drama Studio actual video generation
+    if (
+      request.method === "POST" &&
+      url.pathname === "/api/video"
+    ) {
+      return await handleVideo(request, env);
+    }
+
+    // Health check
+    if (
+      request.method === "GET" &&
+      url.pathname === "/api/health"
+    ) {
+      return json({
+        ok: true,
+        service: "AI Drama Studio",
+        videoModel: "pruna/p-video",
+      });
+    }
+
+    // Serve the existing AI Drama Studio frontend
+    if (env.ASSETS) {
+      return env.ASSETS.fetch(request);
+    }
+
+    return new Response("AI Drama Studio is running.", {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+      },
+    });
+  },
+};
