@@ -67,6 +67,7 @@ function addActionButton(container, label, handler) {
 }
 
 async function callAI(prompt) {
+  async function callAI(prompt) {
   const response = await fetch("/api/chat", {
     method: "POST",
     headers: {
@@ -82,41 +83,33 @@ async function callAI(prompt) {
     })
   });
 
-  if (!response.ok) {
-    throw new Error("AI request failed");
-  }
-
   const raw = await response.text();
-  let result = "";
 
-  for (const line of raw.split(/\r?\n/)) {
-    if (!line.startsWith("data:")) continue;
+  let data;
 
-    const data = line.slice(5).trim();
-
-    if (!data || data === "[DONE]") continue;
-
-    try {
-      const parsed = JSON.parse(data);
-
-      const chunk =
-        parsed.response ||
-        parsed.choices?.[0]?.delta?.content ||
-        "";
-
-      if (chunk) {
-        result += chunk;
-      }
-    } catch (_) {}
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    throw new Error("Invalid AI response received.");
   }
 
-  if (!result.trim()) {
-    throw new Error("No AI response received");
+  if (!response.ok) {
+    throw new Error(data?.error || "AI request failed.");
   }
 
-  return result.trim();
-}
+  const result =
+    data?.response ||
+    data?.result?.response ||
+    data?.choices?.[0]?.message?.content ||
+    data?.choices?.[0]?.delta?.content ||
+    "";
 
+  if (!String(result).trim()) {
+    throw new Error("No AI response received.");
+  }
+
+  return String(result).trim();
+  }
 function settings() {
   return {
     idea: userInput?.value.trim() || "",
