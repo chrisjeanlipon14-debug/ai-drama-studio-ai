@@ -777,3 +777,134 @@ if (userInput) {
   );
 
     }
+async function generateVideoTest(prompt) {
+  try {
+    const response = await fetch("/api/video", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        prompt,
+        duration: 5,
+        resolution: "720p",
+        aspect_ratio: "16:9",
+        draft: true
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Video generation failed.");
+    }
+
+    const video =
+      data.result?.video ||
+      data.result?.video_url ||
+      data.result?.url;
+
+    if (!video) {
+      throw new Error("Video was generated, but no video URL was returned.");
+    }
+
+    const resultBox = document.createElement("div");
+
+    resultBox.className = "video-result";
+
+    resultBox.innerHTML = `
+      <div style="
+        margin-top:20px;
+        padding:18px;
+        border-radius:16px;
+        background:#171717;
+        border:1px solid #333;
+      ">
+        <h3>🎬 VIDEO TEST READY</h3>
+        <p>5-second • 720p Draft</p>
+
+        <video
+          controls
+          playsinline
+          style="
+            width:100%;
+            max-width:720px;
+            border-radius:12px;
+            margin-top:12px;
+          "
+          src="${video}">
+        </video>
+
+        <p style="margin-top:12px;">
+          ✅ Actual AI video generated.
+        </p>
+      </div>
+    `;
+
+    document.body.appendChild(resultBox);
+
+    resultBox.scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+
+  } catch (error) {
+    alert(
+      "Video generation error:\n\n" +
+      (error?.message || error)
+    );
+  }
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const button = document.createElement("button");
+
+  button.textContent = "🎬 Generate 5-Second Test Video";
+
+  button.style.cssText = `
+    display:block;
+    width:100%;
+    max-width:520px;
+    margin:24px auto;
+    padding:16px 20px;
+    border:none;
+    border-radius:14px;
+    background:#8b5cf6;
+    color:white;
+    font-size:16px;
+    font-weight:700;
+    cursor:pointer;
+  `;
+
+  button.addEventListener("click", async () => {
+    const confirmed = confirm(
+      "🎬 5-Second AI Video Test\n\n" +
+      "720p Draft • 16:9\n" +
+      "This test may use AI video credits.\n\n" +
+      "Generate now?"
+    );
+
+    if (!confirmed) return;
+
+    button.disabled = true;
+    button.textContent = "⏳ Generating 5-second video...";
+
+    await generateVideoTest(
+      "Cinematic emotional AI drama opening scene. " +
+      "A worried mother stands alone inside a dimly lit home at night. " +
+      "She suddenly receives a mysterious video message from her missing daughter. " +
+      "Her expression changes from confusion to shock. " +
+      "Realistic cinematic acting, dramatic lighting, subtle camera movement, " +
+      "emotional atmosphere, suspenseful mystery."
+    );
+
+    button.disabled = false;
+    button.textContent = "🎬 Generate 5-Second Test Video";
+  });
+
+  const target =
+    document.querySelector("#studio-plan") ||
+    document.querySelector(".plan-content") ||
+    document.body;
+
+  target.appendChild(button);
+});
