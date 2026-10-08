@@ -901,10 +901,5 @@ async function generateVideoTest(prompt) {
     button.textContent = "🎬 Generate 5-Second Test Video";
   });
 
-  const target =
-    document.querySelector("#studio-plan") ||
-    document.querySelector(".plan-content") ||
-    document.body;
-
-  target.appendChild(button);
+  document.body.appendChild(button);
 })();
