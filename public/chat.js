@@ -855,7 +855,7 @@ async function generateVideoTest(prompt) {
     );
   }
 }
-document.addEventListener("DOMContentLoaded", () => {
+(() => {
   const button = document.createElement("button");
 
   button.textContent = "🎬 Generate 5-Second Test Video";
@@ -907,4 +907,4 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body;
 
   target.appendChild(button);
-});
+})();
