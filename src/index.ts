@@ -5,8 +5,7 @@ interface Env {
   };
 }
 
-const MODEL_ID = "@cf/zai-org/glm-4.7-flash";
-
+const MODEL_ID = "@cf/meta/llama-3.1-8b-instruct-fast";
 const SYSTEM_PROMPT = `
 You are the AI Drama Studio Production Engine.
 
