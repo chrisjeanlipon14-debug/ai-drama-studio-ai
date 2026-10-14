@@ -304,35 +304,45 @@ Do not omit the ending.
       addPart("PART 2A — COMPLETE SCENE OUTLINE", outline);
 
       // PART 2B: Generate each scene in a separate AI request.
-      const sceneCountMatch = outline.match(
-        /(?:scene|eksena)\s*(\d+)\s*[:—-]/ig
-      );
-      let sceneCount = sceneCountMatch?.length || 0;
+      
+const durationCheck = validateSceneDurations(outline, seconds);
 
-      // The model may use other heading styles. Ask it for a normalized list.
-      if (sceneCount < 2) {
-        const normalized = await askAI(`${base}
-SCENE OUTLINE:
-${outline}
+if (!durationCheck.valid) {
+  throw new Error(
+    `Invalid scene outline: ${durationCheck.reason} Hindi magpapatuloy sa generation.`
+  );
+}
 
-Return ONLY a numbered list of every scene in the format:
-SCENE 1: [short title] | [start-end timestamp] | [duration in seconds]
-SCENE 2: ...
-Include the ending. Do not add explanations.
-Durations must total ${seconds} seconds.
-`);
-        addPart("PART 2A-2 — NORMALIZED SCENE LIST", normalized);
-        sceneCountMatch?.splice(0);
-        const matches = [...normalized.matchAll(/SCENE\s*\d+\s*:/ig)];
-        sceneCount = matches.length;
-      }
+const sceneMatches = [
+  ...outline.matchAll(/(?:scene|eksena)\s*(\d+)\s*[:—-]/ig)
+];
 
-      if (sceneCount < 2) {
-        throw new Error("Hindi matukoy ang mga scene. Hindi minarkahang complete ang pack.");
-      }
+const sceneNumbers = sceneMatches.map(match => Number(match[1]));
+const sceneCount = sceneNumbers.length;
 
-      // Keep requests bounded; ask for a concise scene list if unusually large.
-      if (sceneCount > 12) {
+if (sceneCount < 2) {
+  throw new Error(
+    "Hindi sapat ang scene outline. Kailangan ng hindi bababa sa 2 scenes."
+  );
+}
+
+const expectedNumbers = Array.from(
+  { length: sceneCount },
+  (_, index) => index + 1
+);
+
+if (sceneNumbers.some((number, index) => number !== expectedNumbers[index])) {
+  throw new Error(
+    "Hindi sunod-sunod ang scene numbers. Hindi magpapatuloy sa generation."
+  );
+}
+
+if (sceneCount > 12) {
+  throw new Error(
+    `May ${sceneCount} scenes. Hatiin o ayusin muna ang outline.`
+  );
+}
+
         throw new Error(
           `May ${sceneCount} scenes ang outline. Sobra ito para sa safe generation; ayusin muna ang outline.`
         );
@@ -471,10 +481,44 @@ inconsistent, use NEEDS REPAIR. Do not rewrite the story.
 `);
       packParts.push(`FINAL CONTINUITY AUDIT\n\n${audit.trim()}`);
 
-      const pass = /AUDIT RESULT:\s*PASS\b/i.test(audit)
-        && !/AUDIT RESULT:\s*NEEDS REPAIR\b/i.test(audit);
+      
+const auditSaysPass =
+  /\bAUDIT RESULT:\s*PASS\b/i.test(audit) &&
+  !/\bAUDIT RESULT:\s*NEEDS REPAIR\b/i.test(audit);
 
-      showProgress(
+const sectionProblems = validateGeneratedSections(packParts);
+
+const finalDurationCheck = validateSceneDurations(outline, seconds);
+
+const expectedSceneParts = Array.from(
+  { length: sceneCount },
+  (_, index) => `PART 2 — SCENE ${index + 1} OF ${sceneCount}`
+);
+
+const missingScenes = expectedSceneParts.filter(prefix =>
+  !packParts.some(part => part.startsWith(prefix))
+);
+
+const pass =
+  auditSaysPass &&
+  sectionProblems.length === 0 &&
+  finalDurationCheck.valid &&
+  missingScenes.length === 0;
+
+if (!pass) {
+  const reasons = [
+    ...sectionProblems,
+    ...missingScenes.map(scene => `Missing: ${scene}`),
+    ...(!finalDurationCheck.valid ? [finalDurationCheck.reason] : []),
+    ...(!auditSaysPass ? ["Hindi pumasa ang AI audit."] : [])
+  ];
+
+  packParts.push(
+    "LOCAL VALIDATION — NEEDS REPAIR\n\n" +
+    [...new Set(reasons)].join("\n")
+  );
+}
+
         pass
           ? "PRODUCTION PACK — COMPLETE (AUDIT PASSED)"
           : "PRODUCTION PACK — NEEDS REPAIR"
