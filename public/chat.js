@@ -218,6 +218,68 @@ End with: PLAN READY FOR REVIEW
     container.append(heading, pre);
   }
 
+function looksTruncated(text) {
+  const value = String(text || "").trim();
+
+  if (!value || value.length < 100) return true;
+
+  // Detect unfinished headings, labels, and bullets.
+  if (/[:\-]\s*$/.test(value)) return true;
+  if (/[\u2022*]\s*$/.test(value)) return true;
+
+  // Detect common unfinished English or Tagalog connectors.
+  if (/\b(the|and|or|with|for|to|of|because|but|at|in|ng|na|at|sa|ang|mga)\s*[.,:;\-]*$/i.test(value)) {
+    return true;
+  }
+
+  return false;
+}
+
+function validateSceneDurations(outline, expectedSeconds) {
+  const durations = [...String(outline).matchAll(
+    /\bDuration\s*:\s*(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b/gi
+  )].map(match => Number(match[1]));
+
+  if (!durations.length) {
+    return {
+      valid: false,
+      reason: "Walang mabasang scene durations sa outline."
+    };
+  }
+
+  const total = durations.reduce((sum, value) => sum + value, 0);
+
+  if (Math.round(total) !== expectedSeconds) {
+    return {
+      valid: false,
+      reason: `Ang total scene duration ay ${total} seconds, hindi ${expectedSeconds} seconds.`
+    };
+  }
+
+  return { valid: true, durations };
+}
+
+function validateGeneratedSections(parts) {
+  const problems = [];
+
+  for (const part of parts) {
+    const separator = part.indexOf("\n\n");
+    const title = separator >= 0 ? part.slice(0, separator) : part;
+    const body = separator >= 0 ? part.slice(separator + 2).trim() : "";
+
+    if (!body || body.length < 100) {
+      problems.push(`${title}: kulang ang output.`);
+      continue;
+    }
+
+    if (looksTruncated(body)) {
+      problems.push(`${title}: posibleng naputol ang huling pangungusap o field.`);
+    }
+  }
+
+  return problems;
+}
+  
   function addPart(title, text) {
     packParts.push(`${title}\n\n${text.trim()}`);
     showProgress(`PRODUCTION PACK — ${packParts.length} SECTION(S) COMPLETE`);
