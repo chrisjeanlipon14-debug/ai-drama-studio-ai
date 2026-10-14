@@ -219,7 +219,55 @@ End with: PLAN READY FOR REVIEW
     )].map((m) => Number(m[1]));
   }
 
-  function validateSceneDurations(outline, expectedSeconds) {
+  
+function validateSceneDurations(outline, expectedSeconds) {
+  const text = String(outline);
+  const headers = [
+    ...text.matchAll(/^\s*(?:\*\*)?\s*(?:Scene|Eksena)\s*\d+\s*[:—.-].*$/gim)
+  ];
+
+  if (!headers.length) {
+    return {
+      valid: false,
+      reason: "Hindi makita ang mga scene heading sa outline."
+    };
+  }
+
+  const durations = [];
+
+  for (let i = 0; i < headers.length; i++) {
+    const start = headers[i].index + headers[i][0].length;
+    const end = i + 1 < headers.length
+      ? headers[i + 1].index
+      : text.length;
+
+    const block = text.slice(start, end);
+    const match = block.match(
+      /\bDuration\s*:\s*(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b/i
+    );
+
+    if (!match) {
+      return {
+        valid: false,
+        reason: `Hindi mabasa ang Duration ng Scene ${i + 1}.`
+      };
+    }
+
+    durations.push(Number(match[1]));
+  }
+
+  const total = durations.reduce((sum, value) => sum + value, 0);
+
+  if (Math.round(total) !== expectedSeconds) {
+    return {
+      valid: false,
+      reason: `Ang total ay ${total} seconds; kailangan ay ${expectedSeconds} seconds.`
+    };
+  }
+
+  return { valid: true, durations };
+}
+
     const text = String(outline);
     const blocks = text.split(
       /^\s*(?:\*\*)?\s*(?:Scene|Eksena)\s*\d+\s*[:—.-].*$/im
