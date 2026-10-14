@@ -388,7 +388,33 @@ Finish every character profile completely.
 STORY BIBLE:
 ${bible}
 
-Create a concise complete scene outline.
+
+Create a COMPLETE scene outline for the FULL requested runtime.
+
+The total runtime MUST equal exactly ${seconds} seconds.
+For a 60-second video, create enough scenes to cover all 60 seconds.
+Do not stop at 15 seconds or create only an opening segment.
+
+Use continuous, non-overlapping timestamps:
+Scene 1 starts at 0 seconds.
+Each next scene starts when the previous scene ends.
+The final scene ends at exactly ${seconds} seconds.
+
+For every scene, use this format:
+
+Scene 1: Short title
+Start: 0s
+End: 10s
+Duration: 10s
+Location: ...
+Characters: ...
+Main visual action: ...
+Story purpose: ...
+
+Distribute the full runtime across all scenes.
+Include the complete beginning, conflict, climax, and ending.
+Do not omit the final scenes.
+
 For each scene use EXACTLY this format:
 
 Scene 1: Short title
