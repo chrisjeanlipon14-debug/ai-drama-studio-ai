@@ -15,6 +15,15 @@
   let planApproved = false;
   let lastProductionPack = "";
 
+  const language = () =>
+    $("language")?.value || "Tagalog";
+
+  const characterStyle = () =>
+    $("character-style")?.value || "realistic";
+
+  const visualVision = () =>
+    $("visual-vision")?.value || "cinematic";
+
   function addMessage(text, who = "assistant") {
     if (!chatMessages) return;
 
@@ -30,7 +39,7 @@
     chatMessages.scrollTop = chatMessages.scrollHeight;
   }
 
-  function setStatus(text, isError = false) {
+  function setStatus(message, isError = false) {
     let status = $("drama-status");
 
     if (!status) {
@@ -41,10 +50,10 @@
       const p = document.createElement("p");
       status.appendChild(p);
 
-      const parent = sendButton && sendButton.parentElement;
+      const parent = sendButton?.parentElement;
 
       if (parent) parent.appendChild(status);
-      else if (planPanel && planPanel.parentElement) {
+      else if (planPanel?.parentElement) {
         planPanel.parentElement.insertBefore(status, planPanel);
       }
     }
@@ -53,7 +62,7 @@
       "message " +
       (isError ? "user-message" : "assistant-message");
 
-    status.firstElementChild.textContent = text;
+    status.firstElementChild.textContent = message;
   }
 
   function setBusy(busy, message = "") {
@@ -80,32 +89,20 @@
 
   function extractText(data) {
     if (typeof data === "string") return data;
-
-    if (data && typeof data.response === "string") {
-      return data.response;
-    }
-
-    if (data && typeof data.result === "string") {
-      return data.result;
-    }
-
-    if (data && typeof data.output_text === "string") {
+    if (typeof data?.response === "string") return data.response;
+    if (typeof data?.result === "string") return data.result;
+    if (typeof data?.output_text === "string") {
       return data.output_text;
     }
 
-    if (data && Array.isArray(data.content)) {
+    if (Array.isArray(data?.content)) {
       return data.content
-        .map((item) => (item && item.text) || "")
+        .map((item) => item?.text || "")
         .join("\n");
     }
 
-    if (
-      data &&
-      data.choices &&
-      data.choices[0] &&
-      data.choices[0].message
-    ) {
-      return data.choices[0].message.content || "";
+    if (data?.choices?.[0]?.message?.content) {
+      return data.choices[0].message.content;
     }
 
     return "";
@@ -131,7 +128,7 @@
       data = JSON.parse(raw);
     } catch (_) {
       throw new Error(
-        "Hindi valid JSON ang server response."
+        "Invalid server response. Check the Worker backend."
       );
     }
 
@@ -141,198 +138,40 @@
       );
     }
 
-    const text = extractText(data);
+    const text = extractText(data).trim();
 
-    if (!text.trim()) {
+    if (!text) {
       throw new Error(
-        "Walang text na ibinalik ang AI model."
+        "The AI returned an empty response."
       );
     }
 
-    return text.trim();
-  }
-
-  function selectedValue(id, fallback) {
-    const element = $(id);
-    return element && element.value
-      ? element.value
-      : fallback;
+    return text;
   }
 
   function buildPlanPrompt(idea) {
     return `You are Premium AI Drama Studio.
 
-Create an original drama production plan.
-Do not copy existing stories or creators.
+Create a detailed, original drama plan.
 
-DRAMA IDEA: ${idea}
-VIDEO LENGTH: ${selectedDuration}
-LANGUAGE: ${selectedValue("language", "Tagalog")}
-CHARACTER STYLE: ${selectedValue("character-style", "realistic")}
-VISUAL VISION: ${selectedValue("visual-vision", "cinematic")}
+IDEA: ${idea}
+RUNTIME: ${selectedDuration}
+LANGUAGE: ${language()}
+CHARACTER STYLE: ${characterStyle()}
+VISUAL STYLE: ${visualVision()}
 
 Include:
 1. Title and opening hook.
-2. Story summary and emotional payoff.
-3. Character profiles and Character DNA.
-4. Scene-by-scene breakdown with duration,
-   location, visible actions and dialogue.
-5. Camera, lighting, sound and transitions.
-6. Character, wardrobe, prop and location continuity.
-7. Ending or cliffhanger.
-8. Originality, pacing and continuity checks.
+2. Complete story summary and ending.
+3. Main and supporting character profiles.
+4. Scene-by-scene story outline.
+5. Dialogue and emotional progression.
+6. Locations, props and timeline.
+7. Continuity, originality and pacing checks.
 
-Write the complete plan in the selected language.
-Do not claim a video has been generated.`;
-  }
-
-  function buildProductionPrompt(plan) {
-    return `You are the Complete Production Pack Engine
-inside Premium AI Drama Studio.
-
-Create a COMPLETE, production-ready prompt package
-using ONLY the approved drama plan below.
-
-APPROVED DRAMA PLAN:
-${plan}
-
-VIDEO LENGTH: ${selectedDuration}
-LANGUAGE: ${selectedValue("language", "Tagalog")}
-CHARACTER STYLE: ${selectedValue("character-style", "realistic")}
-VISUAL VISION: ${selectedValue("visual-vision", "cinematic")}
-
-OUTPUT REQUIREMENTS:
-
-1. PRODUCTION OVERVIEW
-- Final title, genre, target emotion and story hook.
-- Intended runtime and visual style.
-
-2. CHARACTER DNA LOCK
-- Each character's age range, face, hair, skin tone,
-  body type, voice, personality and identifying details.
-- Exact wardrobe and accessories.
-- Relationships and emotional state.
-- Repeat essential descriptions in scene prompts.
-- Never change character identity between scenes.
-
-3. MASTER VISUAL LOCK
-- Art direction, color palette, aspect ratio,
-  lighting style, environment and visual realism.
-- Keep locations, props, weather and time consistent.
-
-4. COMPLETE SCENE-BY-SCENE PRODUCTION PROMPTS
-For EVERY scene provide:
-- Scene number and purpose.
-- Suggested duration.
-- Location and time of day.
-- Characters visible in frame.
-- Character actions and facial expressions.
-- Detailed, standalone AI video prompt.
-- Dialogue or voice-over, with speaker identified.
-- Camera framing, movement and composition.
-- Lighting, ambience, music and sound effects.
-- Transition to the next scene.
-- Continuity details required from the previous scene.
-
-Ensure scene durations fit the selected runtime.
-Do not omit scenes from the approved story.
-
-5. NEGATIVE PROMPTS
-List unwanted results such as inconsistent faces,
-changing clothes, extra fingers, duplicate characters,
-unwanted text, flicker, distorted anatomy and
-unintended changes to props or locations.
-
-6. EDITING BLUEPRINT
-- Scene order and transitions.
-- Pacing, sound placement and music cues.
-- Opening hook, captions and ending.
-- Cliffhanger or emotional payoff when appropriate.
-
-7. CONTINUITY CHECK
-Check character identity, wardrobe, props,
-location, timeline, dialogue and emotional progression.
-List any unresolved continuity issues honestly.
-
-8. ORIGINALITY AND QUALITY CHECK
-Check originality, pacing, clarity and story logic.
-Do not claim checks were externally verified.
-Identify anything that needs human review.
-
-9. FINAL GENERATION CHECKLIST
-Provide a checklist to review before generating video.
-
-IMPORTANT:
-- Preserve the approved story and its characters.
-- Do not invent unrelated plot changes.
-- Make prompts detailed enough to use individually.
-- Write in the selected language.
-- This is a text production package only.
-- Do not claim that an MP4 or video was generated.
-- Do not omit sections to make the answer shorter.`;
-  }
-
-  function showProductionPack(pack) {
-    lastProductionPack = pack;
-
-    let panel = $("production-pack-panel");
-
-    if (!panel) {
-      panel = document.createElement("section");
-      panel.id = "production-pack-panel";
-      panel.className = "card";
-      planPanel.appendChild(panel);
-    }
-
-    panel.style.display = "block";
-
-    panel.innerHTML = `
-      <div class="card-title">
-        🎬 COMPLETE PRODUCTION PACK
-      </div>
-      <p class="card-description">
-        Production-ready prompts based on your approved plan.
-      </p>
-      <label for="production-pack-editor">
-        Review or edit your Production Pack
-      </label>
-      <textarea
-        id="production-pack-editor"
-        style="width:100%;min-height:360px;padding:12px;
-        border:1px solid #ddd;border-radius:10px;
-        font:14px/1.5 inherit;"
-      ></textarea>
-      <div class="approval-buttons">
-        <button class="secondary-btn" id="copy-production-pack"
-          type="button">📋 Copy Production Pack</button>
-      </div>
-      <p id="production-pack-status"></p>
-    `;
-
-    $("production-pack-editor").value = pack;
-
-    $("copy-production-pack").addEventListener(
-      "click",
-      async () => {
-        const editor = $("production-pack-editor");
-
-        try {
-          await navigator.clipboard.writeText(editor.value);
-          $("production-pack-status").textContent =
-            "Production Pack copied.";
-        } catch (_) {
-          editor.focus();
-          editor.select();
-          $("production-pack-status").textContent =
-            "Text selected. Choose Copy from your tablet menu.";
-        }
-      }
-    );
-
-    panel.scrollIntoView({
-      behavior: "smooth",
-      block: "start"
-    });
+Make the story suitable for AI video production.
+Write in the selected language.
+Do not claim that video has been generated.`;
   }
 
   function showPlan(plan) {
@@ -353,7 +192,7 @@ IMPORTANT:
           <div>
             <div class="card-title">🎬 DRAMA PLAN</div>
             <div class="card-description">
-              AI-generated production blueprint
+              Review your AI-generated story
             </div>
           </div>
           <div class="plan-badge">PLAN READY</div>
@@ -392,11 +231,11 @@ IMPORTANT:
 
       try {
         await navigator.clipboard.writeText(editor.value);
-        setStatus("Nakopya ang drama plan.");
+        setStatus("Drama plan copied.");
       } catch (_) {
         editor.focus();
         editor.select();
-        setStatus("Napili ang text. Piliin ang Copy sa menu.");
+        setStatus("Text selected. Choose Copy from the menu.");
       }
     });
 
@@ -404,18 +243,18 @@ IMPORTANT:
       lastPlan = $("generated-plan").value.trim();
 
       if (!lastPlan) {
-        setStatus("Walang plan na maaaprubahan.", true);
+        setStatus("The drama plan is empty.", true);
         return;
       }
 
       planApproved = true;
 
       $("plan-approval-status").textContent =
-        "Plan approved. Maaari ka nang bumuo ng Production Pack.";
+        "Plan approved. You can now build the Production Pack.";
 
       $("build-production-pack").disabled = isProcessing;
 
-      setStatus("Naaprubahan ang drama plan.");
+      setStatus("Drama plan approved.");
     });
 
     $("build-production-pack").addEventListener(
@@ -429,22 +268,280 @@ IMPORTANT:
     });
   }
 
-  async function createDramaPlan() {
+  function getPackSections() {
+    return [
+      {
+        title: "PART 1 — CHARACTER DNA AND MASTER VISUAL LOCK",
+        instruction: `
+Create the production foundation.
+
+Include:
+- Final title, genre, runtime and story hook.
+- Every character's age range, face, hair, skin tone,
+  body type, identifying details, personality and voice.
+- Exact wardrobe, accessories and props.
+- Character relationships and emotional arcs.
+- Master visual style, color palette, aspect ratio,
+  lighting approach, environment and realism.
+- Location descriptions and recurring visual details.
+- A reusable character consistency block.
+
+Be specific. Do not use vague placeholders.
+Preserve the approved story.`
+      },
+      {
+        title: "PART 2 — COMPLETE SCENE-BY-SCENE VIDEO PROMPTS",
+        instruction: `
+Create the complete scene list for the approved story.
+
+For EVERY scene include:
+- Scene number and purpose.
+- Suggested duration.
+- Location and time of day.
+- Characters visible in frame.
+- Exact visible actions and facial expressions.
+- A detailed, standalone AI video generation prompt.
+- Camera framing, lens feel and camera movement.
+- Lighting, atmosphere and color.
+- Sound effects and background ambience.
+- Transition into the next scene.
+- Required character, wardrobe, prop and location locks.
+
+Each scene prompt must be usable independently.
+Repeat the relevant character appearance details in each
+prompt so visual consistency does not depend on memory.
+
+Cover the full runtime. Do not stop after the first scenes.
+Do not replace actual scenes with a general summary.`
+      },
+      {
+        title: "PART 3 — DIALOGUE, VOICE AND CINEMATOGRAPHY",
+        instruction: `
+Create a scene-by-scene dialogue and audio blueprint.
+
+For each scene provide:
+- Speaker names and exact dialogue.
+- Voice-over where appropriate.
+- Pauses, delivery, emotion and speaking pace.
+- Character reactions and silent acting beats.
+- Camera framing, movement and composition.
+- Lighting changes and visual emphasis.
+- Music cues, sound effects and ambience.
+- Scene transitions and timing guidance.
+
+Keep dialogue consistent with the approved plot.
+Do not invent unrelated subplots.
+Use the selected language throughout.`
+      },
+      {
+        title: "PART 4 — NEGATIVE PROMPTS, EDITING AND QUALITY CHECKS",
+        instruction: `
+Complete the production package.
+
+Include:
+- Negative prompts for unwanted visual results.
+- Face, hair, body, clothing and prop consistency rules.
+- Location, timeline and emotional continuity checks.
+- Originality and story-logic review.
+- Pacing and runtime review.
+- Editing order, transitions, captions and sound placement.
+- Opening hook and ending or cliffhanger.
+- Final pre-generation checklist.
+- Unresolved issues that require human review.
+
+Be honest about any checks that cannot be confirmed.
+Do not claim external verification or generated video.
+Make the package practical for AI video production.`
+      }
+    ];
+  }
+
+  async function createProductionPack() {
     if (isProcessing) return;
 
-    const idea = input ? input.value.trim() : "";
+    const editor = $("generated-plan");
 
-    if (!idea) {
+    if (editor && planApproved) {
+      lastPlan = editor.value.trim();
+    }
+
+    if (!planApproved || !lastPlan.trim()) {
       setStatus(
-        "Ilagay muna ang drama idea bago gumawa ng plan.",
+        "Approve the drama plan before building the Production Pack.",
         true
       );
-      if (input) input.focus();
       return;
     }
 
-    setBusy(true, "Creating your drama plan...");
-    setStatus("Ginagawa ang drama plan. Sandali lang...");
+    const sections = getPackSections();
+    const completed = [];
+
+    setBusy(true);
+    lastProductionPack = "";
+
+    try {
+      for (let i = 0; i < sections.length; i++) {
+        const section = sections[i];
+
+        setBusy(
+          true,
+          `Creating production section ${i + 1} of ${sections.length}...`
+        );
+
+        setStatus(
+          `Generating ${i + 1}/${sections.length}: ${section.title}`
+        );
+
+        const prompt = `
+You are the Production Engine of Premium AI Drama Studio.
+
+APPROVED DRAMA PLAN:
+${lastPlan}
+
+RUNTIME: ${selectedDuration}
+LANGUAGE: ${language()}
+CHARACTER STYLE: ${characterStyle()}
+VISUAL STYLE: ${visualVision()}
+
+TASK:
+${section.title}
+
+${section.instruction}
+
+Requirements:
+- Follow the approved plan and its established characters.
+- Write the actual requested content, not an outline of it.
+- Be detailed, concrete and production-ready.
+- Do not repeat other sections unnecessarily.
+- Do not claim that a video has been generated.
+- If the source plan lacks a detail, make a reasonable
+  creative choice consistent with the story.
+`;
+
+        const result = await requestAI(prompt);
+
+        completed.push(
+          `\n\n${section.title}\n\n${result}`
+        );
+      }
+
+      lastProductionPack =
+        `COMPLETE PRODUCTION PACK\n` +
+        `Title: AI Drama Studio Production\n` +
+        `Runtime: ${selectedDuration}\n` +
+        `Language: ${language()}\n` +
+        completed.join("\n");
+
+      showProductionPack(lastProductionPack);
+
+      setStatus(
+        "All four sections returned. Review the complete pack."
+      );
+
+      addMessage(
+        "Production Pack generation finished. This is a text package, not a generated video."
+      );
+    } catch (error) {
+      console.error("Production Pack error:", error);
+
+      if (completed.length) {
+        lastProductionPack =
+          "PARTIAL PRODUCTION PACK\n" +
+          completed.join("\n");
+
+        showProductionPack(lastProductionPack);
+
+        setStatus(
+          `Generation stopped early. ${completed.length} of 4 sections completed. ` +
+          (error.message || ""),
+          true
+        );
+      } else {
+        setStatus(
+          "Production Pack failed: " +
+          (error.message || "Unknown error"),
+          true
+        );
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function showProductionPack(pack) {
+    lastProductionPack = pack;
+
+    let panel = $("production-pack-panel");
+
+    if (!panel) {
+      panel = document.createElement("section");
+      panel.id = "production-pack-panel";
+      panel.className = "card";
+      planPanel.appendChild(panel);
+    }
+
+    panel.style.display = "block";
+
+    panel.innerHTML = `
+      <div class="card-title">🎬 COMPLETE PRODUCTION PACK</div>
+      <p class="card-description">
+        Four-part production package based on your approved plan.
+      </p>
+      <label for="production-pack-editor">
+        Review or edit the Production Pack
+      </label>
+      <textarea id="production-pack-editor"
+        style="width:100%;min-height:420px;padding:12px;
+        border:1px solid #ddd;border-radius:10px;
+        font:14px/1.5 inherit;"></textarea>
+      <div class="approval-buttons">
+        <button class="secondary-btn" id="copy-production-pack"
+          type="button">📋 Copy Production Pack</button>
+      </div>
+      <p id="production-pack-status"></p>
+    `;
+
+    $("production-pack-editor").value = pack;
+
+    $("copy-production-pack").addEventListener(
+      "click",
+      async () => {
+        const text = $("production-pack-editor").value;
+
+        try {
+          await navigator.clipboard.writeText(text);
+          $("production-pack-status").textContent =
+            "Production Pack copied.";
+        } catch (_) {
+          const editor = $("production-pack-editor");
+          editor.focus();
+          editor.select();
+
+          $("production-pack-status").textContent =
+            "Text selected. Choose Copy from your device menu.";
+        }
+      }
+    );
+
+    panel.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
+
+  async function createDramaPlan() {
+    if (isProcessing) return;
+
+    const idea = input?.value.trim() || "";
+
+    if (!idea) {
+      setStatus("Enter a drama idea first.", true);
+      input?.focus();
+      return;
+    }
+
+    setBusy(true, "Creating drama plan...");
+    setStatus("Creating your drama plan...");
 
     addMessage(
       `Drama idea: ${idea}\nDuration: ${selectedDuration}`,
@@ -455,60 +552,13 @@ IMPORTANT:
       const plan = await requestAI(buildPlanPrompt(idea));
       lastPlan = plan;
       showPlan(plan);
-      setStatus("Tapos na ang drama plan. Suriin at aprubahan ito.");
+      setStatus("Drama plan ready. Review and approve it.");
     } catch (error) {
       console.error("Drama plan error:", error);
-      setStatus(
-        "Hindi nagawa ang drama plan: " +
-          (error.message || "Unknown error"),
-        true
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function createProductionPack() {
-    if (isProcessing) return;
-
-    if (!planApproved || !lastPlan.trim()) {
-      setStatus(
-        "Aprubahan muna ang drama plan bago gumawa ng Production Pack.",
-        true
-      );
-      return;
-    }
-
-    // Keep any edits made before approval.
-    const approvedEditor = $("generated-plan");
-    if (approvedEditor) {
-      lastPlan = approvedEditor.value.trim();
-    }
-
-    setBusy(true, "Building Complete Production Pack...");
-    setStatus(
-      "Binubuo ang Production Pack mula sa approved plan..."
-    );
-
-    try {
-      const pack = await requestAI(
-        buildProductionPrompt(lastPlan)
-      );
-
-      showProductionPack(pack);
 
       setStatus(
-        "Production Pack ready. Suriin at kopyahin ang prompts."
-      );
-
-      addMessage(
-        "Nagawa na ang Complete Production Pack. Text prompts pa lamang ito; hindi pa generated video."
-      );
-    } catch (error) {
-      console.error("Production Pack error:", error);
-      setStatus(
-        "Hindi nagawa ang Production Pack: " +
-          (error.message || "Unknown error"),
+        "Drama plan failed: " +
+        (error.message || "Unknown error"),
         true
       );
     } finally {
@@ -530,7 +580,7 @@ IMPORTANT:
   if (sendButton) {
     sendButton.addEventListener("click", createDramaPlan);
   } else {
-    console.error("Missing #send-button.");
+    console.error("AI Drama Studio: #send-button is missing.");
   }
 
   if (input) {
@@ -543,6 +593,6 @@ IMPORTANT:
   }
 
   console.info(
-    "AI Drama Studio: Production Pack workflow loaded."
+    "AI Drama Studio: multi-part Production Pack workflow loaded."
   );
 })();
