@@ -10,7 +10,7 @@
   const planBox = $("#studio-plan");
 
   if (!input || !sendButton || !chat) {
-    console.error("AI Drama Studio: Missing required HTML elements.");
+    console.error("AI Drama Studio: Required HTML elements missing.");
     return;
   }
 
@@ -38,12 +38,12 @@
 
   function secondsFromRuntime(value) {
     const s = String(value).toLowerCase();
-    const sec = s.match(/(\d+(?:\.\d+)?)\s*(?:seconds?|secs?)/);
-    const hour = s.match(/(\d+(?:\.\d+)?)\s*hours?/);
-    const min = s.match(/(\d+(?:\.\d+)?)\s*(?:minutes?|mins?)/);
-    if (sec) return Math.round(Number(sec[1]));
-    if (hour) return Math.round(Number(hour[1]) * 3600);
-    if (min) return Math.round(Number(min[1]) * 60);
+    let m = s.match(/(\d+(?:\.\d+)?)\s*(?:seconds?|secs?)/);
+    if (m) return Math.round(Number(m[1]));
+    m = s.match(/(\d+(?:\.\d+)?)\s*hours?/);
+    if (m) return Math.round(Number(m[1]) * 3600);
+    m = s.match(/(\d+(?:\.\d+)?)\s*(?:minutes?|mins?)/);
+    if (m) return Math.round(Number(m[1]) * 60);
     const n = Number.parseFloat(s);
     return Number.isFinite(n) ? Math.round(n * 60) : 60;
   }
@@ -54,17 +54,17 @@
       || el?.value || "Tagalog";
   }
 
+  function getSetting(selector, fallback) {
+    const el = $(selector);
+    return el?.selectedOptions?.[0]?.textContent?.trim()
+      || el?.value || fallback;
+  }
+
   function getSelectedRuntime() {
     const active = document.querySelector(".length-btn.active");
     return active?.dataset?.length
       || active?.textContent?.trim()
       || runtime;
-  }
-
-  function getSetting(selector, fallback) {
-    const el = $(selector);
-    return el?.selectedOptions?.[0]?.textContent?.trim()
-      || el?.value || fallback;
   }
 
   async function askAI(prompt) {
@@ -86,7 +86,7 @@
     try {
       data = JSON.parse(raw);
     } catch {
-      throw new Error("The server returned invalid JSON.");
+      throw new Error("Invalid JSON response from server.");
     }
 
     const candidates = [
@@ -104,18 +104,18 @@
     }
 
     if (Array.isArray(data?.content)) {
-      const result = data.content
+      const text = data.content
         .map((item) => item?.text || "")
-        .filter(Boolean).join("\n");
-      if (result) return result.trim();
+        .filter(Boolean)
+        .join("\n");
+      if (text) return text.trim();
     }
 
-    throw new Error("Hindi mabasa ang text sa AI response.");
+    throw new Error("Hindi mabasa ang AI response.");
   }
 
   function showPlan(text) {
     approvedPlan = text;
-
     const container = planBox || chat;
     container.style.display = "block";
     container.textContent = "";
@@ -133,7 +133,6 @@
     approve.addEventListener("click", buildPack);
 
     container.append(heading, pre, approve);
-    container.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }
 
   async function createPlan() {
@@ -147,17 +146,15 @@
 
     runtime = getSelectedRuntime();
     language = getLanguage();
-
     setBusy(true);
     message("user", `${idea}\nRuntime: ${runtime}\nLanguage: ${language}`);
 
     try {
       const seconds = secondsFromRuntime(runtime);
-
-      const result = await askAI(`
+      const plan = await askAI(`
 You are the original story planner for AI Drama Studio.
 
-USER'S DRAMA IDEA:
+USER IDEA:
 ${idea}
 
 LOCKED SETTINGS:
@@ -167,35 +164,28 @@ Language: ${language}
 Visual style: ${getSetting("#character-style", "Cinematic realistic")}
 Visual direction: ${getSetting("#visual-vision", "Emotional cinematic")}
 
-Create an original, practical drama plan.
-
-Include:
-1. Title and genre.
-2. Story summary with beginning, conflict, climax, and ending.
-3. Character names, ages, appearance, wardrobe, and relationships.
-4. Locations, timeline, and important props.
-5. A numbered scene outline with timestamps and durations adding up
-   to exactly ${seconds} seconds.
+Create an original, practical drama plan with:
+1. Title, genre, and logline.
+2. Beginning, conflict, climax, and ending.
+3. Character ages, appearance, wardrobe, and relationships.
+4. Locations, timeline, and recurring props.
+5. Numbered scene outline with timestamps and durations totaling
+   exactly ${seconds} seconds.
 6. Dialogue or voice-over direction.
 7. Ending and continuity locks.
 
-IMPORTANT:
-- Never change the requested runtime.
-- A 1-minute story must total exactly 60 seconds.
-- Keep the story simple enough for the requested duration.
-- Do not invent contradictions between scenes.
-- Do not copy an existing story.
-- Use ${language} for story dialogue and on-screen text.
+Never change the requested runtime. Keep the story achievable within
+the selected duration. Use ${language}. Do not copy existing stories.
 
 End with: PLAN READY FOR REVIEW
 `);
 
-      if (result.length < 150) {
-        throw new Error("Masyadong maikli ang plan. Subukan ulit.");
+      if (plan.length < 150) {
+        throw new Error("Masyadong maikli ang plan.");
       }
 
-      showPlan(result);
-      message("assistant", "Suriin ang plan at i-approve bago buuin ang Production Pack.");
+      showPlan(plan);
+      message("assistant", "Suriin ang plan bago i-approve.");
     } catch (error) {
       message("assistant", `Hindi nagawa ang plan: ${error.message}`);
     } finally {
@@ -218,71 +208,84 @@ End with: PLAN READY FOR REVIEW
     container.append(heading, pre);
   }
 
-function looksTruncated(text) {
-  const value = String(text || "").trim();
-
-  if (!value || value.length < 100) return true;
-
-  // Detect unfinished headings, labels, and bullets.
-  if (/[:\-]\s*$/.test(value)) return true;
-  if (/[\u2022*]\s*$/.test(value)) return true;
-
-  // Detect common unfinished English or Tagalog connectors.
-  if (/\b(the|and|or|with|for|to|of|because|but|at|in|ng|na|at|sa|ang|mga)\s*[.,:;\-]*$/i.test(value)) {
-    return true;
-  }
-
-  return false;
-}
-
-function validateSceneDurations(outline, expectedSeconds) {
-  const durations = [...String(outline).matchAll(
-    /\bDuration\s*:\s*(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b/gi
-  )].map(match => Number(match[1]));
-
-  if (!durations.length) {
-    return {
-      valid: false,
-      reason: "Walang mabasang scene durations sa outline."
-    };
-  }
-
-  const total = durations.reduce((sum, value) => sum + value, 0);
-
-  if (Math.round(total) !== expectedSeconds) {
-    return {
-      valid: false,
-      reason: `Ang total scene duration ay ${total} seconds, hindi ${expectedSeconds} seconds.`
-    };
-  }
-
-  return { valid: true, durations };
-}
-
-function validateGeneratedSections(parts) {
-  const problems = [];
-
-  for (const part of parts) {
-    const separator = part.indexOf("\n\n");
-    const title = separator >= 0 ? part.slice(0, separator) : part;
-    const body = separator >= 0 ? part.slice(separator + 2).trim() : "";
-
-    if (!body || body.length < 100) {
-      problems.push(`${title}: kulang ang output.`);
-      continue;
-    }
-
-    if (looksTruncated(body)) {
-      problems.push(`${title}: posibleng naputol ang huling pangungusap o field.`);
-    }
-  }
-
-  return problems;
-}
-  
   function addPart(title, text) {
     packParts.push(`${title}\n\n${text.trim()}`);
     showProgress(`PRODUCTION PACK — ${packParts.length} SECTION(S) COMPLETE`);
+  }
+
+  function getSceneNumbers(text) {
+    return [...String(text).matchAll(
+      /^\s*(?:\*\*)?\s*(?:Scene|Eksena)\s*(\d+)\s*[:—.-]/gim
+    )].map((m) => Number(m[1]));
+  }
+
+  function validateSceneDurations(outline, expectedSeconds) {
+    const text = String(outline);
+    const blocks = text.split(
+      /^\s*(?:\*\*)?\s*(?:Scene|Eksena)\s*\d+\s*[:—.-].*$/im
+    ).slice(1);
+
+    const durations = [];
+
+    for (const block of blocks) {
+      const match = block.match(
+        /\bDuration\s*:\s*(\d+(?:\.\d+)?)\s*(?:seconds?|secs?|s)\b/i
+      );
+      if (!match) {
+        return {
+          valid: false,
+          reason: "May scene na walang mabasang Duration field."
+        };
+      }
+      durations.push(Number(match[1]));
+    }
+
+    if (!durations.length) {
+      return {
+        valid: false,
+        reason: "Hindi ma-parse ang scene outline. Kailangan ang Scene 1: at Duration: 5s format."
+      };
+    }
+
+    const total = durations.reduce((sum, n) => sum + n, 0);
+
+    if (Math.round(total) !== expectedSeconds) {
+      return {
+        valid: false,
+        reason: `Ang total ay ${total} seconds, pero ang request ay ${expectedSeconds} seconds.`
+      };
+    }
+
+    return { valid: true, durations };
+  }
+
+  function looksTruncated(text) {
+    const value = String(text || "").trim();
+    if (!value || value.length < 100) return true;
+    if (/[:\-]\s*$/.test(value)) return true;
+    if (/[\u2022*]\s*$/.test(value)) return true;
+    if (/\b(the|and|or|with|for|because|but|ng|na|at|sa|ang|mga)\s*[.,:;\-]*$/i.test(value)) {
+      return true;
+    }
+    return false;
+  }
+
+  function validateGeneratedSections(parts) {
+    const problems = [];
+
+    for (const part of parts) {
+      const index = part.indexOf("\n\n");
+      const title = index >= 0 ? part.slice(0, index) : part;
+      const body = index >= 0 ? part.slice(index + 2).trim() : "";
+
+      if (!body || body.length < 100) {
+        problems.push(`${title}: kulang ang output.`);
+      } else if (looksTruncated(body)) {
+        problems.push(`${title}: posibleng naputol ang huling linya.`);
+      }
+    }
+
+    return problems;
   }
 
   async function buildPack() {
@@ -294,7 +297,7 @@ function validateGeneratedSections(parts) {
     }
 
     if (!window.confirm(
-      `Buuin ang Production Pack? Runtime: ${runtime}. Gagamitin ang approved plan.`
+      `Buuin ang Production Pack? Runtime: ${runtime}.`
     )) return;
 
     setBusy(true);
@@ -311,224 +314,161 @@ Runtime: ${runtime}
 Exact duration: ${seconds} seconds
 Language: ${language}
 
-NON-NEGOTIABLE:
-- Do not change the approved title, runtime, ending, character ages,
-  relationships, locations, timeline, or established events.
-- Keep every scene consistent with the approved plan.
-- Never require a longer runtime.
-- Return only the requested section.
-- Finish every sentence and bullet.
+Never change the approved story, runtime, character ages, relationships,
+locations, timeline, props, or ending. Return only the requested task.
 `;
 
     try {
-      // PART 1: Character and story bible
       showProgress("GENERATING PART 1 — STORY BIBLE");
 
       const bible = await askAI(`${base}
-TASK: STORY BIBLE AND CHARACTER DNA
+Create the complete Story Bible and Character DNA.
 
-Create:
-- Title, genre, logline, and story summary.
-- Beginning, conflict, climax, and ending.
-- Full profile for every important character: age, face, hair, skin,
-  body type, voice, personality, wardrobe, accessories, recurring props.
-- Location, timeline, relationships, and continuity locks.
+Include title, genre, logline, complete story summary, beginning,
+conflict, climax, ending, and every important character's age, face,
+hair, skin tone, body type, voice, personality, wardrobe, accessories,
+props, relationships, locations, timeline, and continuity locks.
 
-Complete every character profile. Do not stop mid-sentence.
+Finish every character profile completely.
 `);
       if (bible.length < 250) throw new Error("Kulang ang Story Bible.");
       addPart("PART 1 — STORY BIBLE AND CHARACTER DNA", bible);
 
-      // PART 2A: Scene outline only
-      showProgress("GENERATING SCENE OUTLINE");
+      showProgress("GENERATING PART 2A — SCENE OUTLINE");
 
       const outline = await askAI(`${base}
 STORY BIBLE:
 ${bible}
 
-TASK: CREATE THE COMPLETE SCENE OUTLINE.
+Create a concise complete scene outline.
+For each scene use EXACTLY this format:
 
-Return a concise numbered list of ALL scenes required for the full story.
-For each scene provide:
-- Scene number
-- Start and end timestamp
-- Duration in seconds
-- Location
-- Characters present
-- Main visual action
-- Story purpose
+Scene 1: Short title
+Start: 0s
+End: 5s
+Duration: 5s
+Location: ...
+Characters: ...
+Main visual action: ...
+Story purpose: ...
 
-The durations MUST add up to exactly ${seconds} seconds.
-Do not write long prompts here. This is an outline only.
-Do not omit the ending.
+Use sequential scene numbers. Include the ending. Durations must add
+up to exactly ${seconds} seconds. Do not include multiple Duration
+fields for one scene.
 `);
       if (outline.length < 100) throw new Error("Kulang ang scene outline.");
+
+      const durationCheck = validateSceneDurations(outline, seconds);
+      if (!durationCheck.valid) throw new Error(durationCheck.reason);
+
+      const sceneNumbers = getSceneNumbers(outline);
+      if (sceneNumbers.length < 2) {
+        throw new Error("Kailangan ng hindi bababa sa 2 scenes.");
+      }
+
+      if (sceneNumbers.some((number, index) => number !== index + 1)) {
+        throw new Error("Hindi sunod-sunod ang scene numbers.");
+      }
+
+      if (sceneNumbers.length > 12) {
+        throw new Error("Higit sa 12 scenes. Paikliin o ayusin muna ang outline.");
+      }
+
       addPart("PART 2A — COMPLETE SCENE OUTLINE", outline);
 
-      // PART 2B: Generate each scene in a separate AI request.
-      
-const durationCheck = validateSceneDurations(outline, seconds);
-
-if (!durationCheck.valid) {
-  throw new Error(
-    `Invalid scene outline: ${durationCheck.reason} Hindi magpapatuloy sa generation.`
-  );
-}
-
-const sceneMatches = [
-  ...outline.matchAll(/(?:scene|eksena)\s*(\d+)\s*[:—-]/ig)
-];
-
-const sceneNumbers = sceneMatches.map(match => Number(match[1]));
-const sceneCount = sceneNumbers.length;
-
-if (sceneCount < 2) {
-  throw new Error(
-    "Hindi sapat ang scene outline. Kailangan ng hindi bababa sa 2 scenes."
-  );
-}
-
-const expectedNumbers = Array.from(
-  { length: sceneCount },
-  (_, index) => index + 1
-);
-
-if (sceneNumbers.some((number, index) => number !== expectedNumbers[index])) {
-  throw new Error(
-    "Hindi sunod-sunod ang scene numbers. Hindi magpapatuloy sa generation."
-  );
-}
-
-if (sceneCount > 12) {
-  throw new Error(
-    `May ${sceneCount} scenes. Hatiin o ayusin muna ang outline.`
-  );
-}
-
-        throw new Error(
-          `May ${sceneCount} scenes ang outline. Sobra ito para sa safe generation; ayusin muna ang outline.`
-        );
-      }
-
-      const sceneSource = packParts.join("\n\n");
-
-      for (let i = 1; i <= sceneCount; i++) {
-        showProgress(`GENERATING SCENE ${i} OF ${sceneCount}`);
+      for (let i = 1; i <= sceneNumbers.length; i++) {
+        showProgress(`GENERATING SCENE ${i}/${sceneNumbers.length}`);
 
         const scene = await askAI(`${base}
-STORY BIBLE AND OUTLINE:
-${sceneSource}
-
-TASK: GENERATE SCENE ${i} ONLY.
-
-Return a complete, standalone video-generation prompt containing:
-- Exact scene number, title, and timestamps.
-- Duration in seconds.
-- Location and time of day.
-- Characters present with their locked ages.
-- Actions and facial expressions.
-- A detailed visual prompt for the video generator.
-- Camera framing, movement, and lighting.
-- Atmosphere, sound effects, and transition.
-- Character appearance and wardrobe locks.
-
-Do not generate other scenes.
-Do not contradict the outline or approved plan.
-Do not leave any field unfinished.
-Finish the entire scene before stopping.
-`);
-        if (scene.length < 180) {
-          throw new Error(`Scene ${i} is incomplete.`);
-        }
-
-        addPart(`PART 2 — SCENE ${i} OF ${sceneCount}`, scene);
-      }
-
-      // PART 3: Dialogue and cinematography per scene.
-      for (let i = 1; i <= sceneCount; i++) {
-        showProgress(`GENERATING DIALOGUE & CINEMATOGRAPHY ${i}/${sceneCount}`);
-
-        const sceneText = packParts.find((p) =>
-          p.startsWith(`PART 2 — SCENE ${i} OF`)
-        ) || "";
-
-        const direction = await askAI(`${base}
-APPROVED PLAN, STORY BIBLE, AND SCENE OUTLINE:
-${sceneSource}
-
-SCENE TO COVER:
-${sceneText}
-
-TASK: DIALOGUE AND CINEMATOGRAPHY FOR SCENE ${i} ONLY.
-
-Include:
-- Exact dialogue in ${language}, or explicitly "No dialogue".
-- Voice-over or narration, or explicitly "No voice-over".
-- Speaker, emotion, delivery, pacing, and pauses.
-- Silent acting and character reactions.
-- Camera, framing, movement, lighting, and composition.
-- Sound effects, ambience, and music.
-- On-screen text if needed.
-
-If the scene has no dialogue, do not describe a character speaking.
-Do not invent events or add characters.
-Complete every field.
-`);
-        if (direction.length < 120) {
-          throw new Error(`Dialogue/cinematography for Scene ${i} is incomplete.`);
-        }
-
-        addPart(`PART 3 — DIALOGUE & CINEMATOGRAPHY, SCENE ${i}`, direction);
-      }
-
-      // PART 4: Global production instructions
-      showProgress("GENERATING PART 4 — EDITING & CONTINUITY LOCKS");
-
-      const editing = await askAI(`${base}
 STORY BIBLE:
 ${bible}
 
 COMPLETE SCENE OUTLINE:
 ${outline}
 
-TASK: EDITING, NEGATIVE PROMPTS, AND QUALITY CHECKS.
+Generate Scene ${i} ONLY as a complete standalone video prompt.
 
-Include:
-1. Editing timeline matching exactly ${seconds} seconds.
-2. Transitions and pacing.
-3. Negative prompts to prevent unwanted visual results.
-4. Face, hair, body, wardrobe, and accessory locks for every character.
-5. Location, prop, timeline, and emotional continuity locks.
-6. Audio, subtitles, and on-screen text instructions.
-7. A practical pre-generation checklist.
+Include title, exact timestamps, duration, location, time of day,
+characters with locked ages and appearance, actions, facial expressions,
+visual prompt, camera, framing, movement, lighting, atmosphere, sound,
+transition, wardrobe locks, and props.
 
-Do not change the requested runtime.
-Do not invent a new story event.
+Do not generate another scene. Do not contradict the approved plan.
+Finish the entire scene.
+`);
+
+        if (scene.length < 180 || looksTruncated(scene)) {
+          throw new Error(`Scene ${i} is incomplete or possibly truncated.`);
+        }
+
+        addPart(`PART 2 — SCENE ${i} OF ${sceneNumbers.length}`, scene);
+      }
+
+      for (let i = 1; i <= sceneNumbers.length; i++) {
+        showProgress(`GENERATING DIALOGUE & CINEMATOGRAPHY ${i}/${sceneNumbers.length}`);
+
+        const scenePart = packParts.find((part) =>
+          part.startsWith(`PART 2 — SCENE ${i} OF`)
+        );
+
+        const direction = await askAI(`${base}
+STORY BIBLE:
+${bible}
+
+SCENE OUTLINE:
+${outline}
+
+SCENE TO COVER:
+${scenePart}
+
+Create dialogue and cinematography for Scene ${i} ONLY.
+Include exact dialogue in ${language}, or state "No dialogue".
+Include voice-over, speaker, emotion, delivery, pacing, pauses,
+silent acting, camera, framing, movement, lighting, sound, ambience,
+music, and on-screen text where appropriate.
+
+Do not invent events or contradict the scene.
 Finish every section.
 `);
-      if (editing.length < 200) throw new Error("Kulang ang Editing and Continuity section.");
+
+        if (direction.length < 120 || looksTruncated(direction)) {
+          throw new Error(`Dialogue/cinematography for Scene ${i} is incomplete.`);
+        }
+
+        addPart(`PART 3 — DIALOGUE & CINEMATOGRAPHY, SCENE ${i}`, direction);
+      }
+
+      showProgress("GENERATING PART 4 — EDITING AND CONTINUITY");
+
+      const editing = await askAI(`${base}
+STORY BIBLE:
+${bible}
+
+SCENE OUTLINE:
+${outline}
+
+Create editing timeline totaling exactly ${seconds} seconds,
+transitions, pacing, negative prompts, character face/hair/body/
+wardrobe locks, location/prop/timeline locks, audio/subtitle
+instructions, and a pre-generation checklist.
+
+Do not change the runtime or add contradictory story events.
+`);
+      if (editing.length < 200 || looksTruncated(editing)) {
+        throw new Error("Editing and Continuity section is incomplete.");
+      }
+
       addPart("PART 4 — EDITING, NEGATIVE PROMPTS AND QUALITY CHECKS", editing);
 
-      // FINAL AUDIT
       showProgress("RUNNING FINAL CONTINUITY AUDIT");
 
       const audit = await askAI(`${base}
-COMPLETE PRODUCTION PACK:
+PRODUCTION PACK:
 ${packParts.join("\n\n")}
 
-TASK: FINAL CONTINUITY AUDIT.
-
-Check:
-- Requested runtime remains exactly ${runtime} (${seconds} seconds).
-- Scene durations add up to exactly ${seconds} seconds.
-- Every scene has a complete visual prompt.
-- Dialogue/cinematography exists for every scene.
-- Character ages, appearance, wardrobe, and props are consistent.
-- Locations, timeline, and ending match the approved plan.
-- All parts are present and not obviously cut off.
-
-A 1-minute runtime is valid. Never require a longer runtime merely
-because the story is emotional or complex.
+Audit runtime, total scene duration, completeness, character consistency,
+wardrobe, props, locations, timeline, ending, and missing sections.
+A 1-minute runtime is valid. Never demand a longer runtime.
 
 Return:
 FINAL CONTINUITY AUDIT
@@ -538,49 +478,45 @@ COMPLETENESS CHECK:
 CONTINUITY CHECK:
 REQUIRED FIXES:
 
-Use PASS only if all checks pass. If any section is missing or
-inconsistent, use NEEDS REPAIR. Do not rewrite the story.
+Use NEEDS REPAIR for any missing or inconsistent detail.
 `);
+
       packParts.push(`FINAL CONTINUITY AUDIT\n\n${audit.trim()}`);
 
-      
-const auditSaysPass =
-  /\bAUDIT RESULT:\s*PASS\b/i.test(audit) &&
-  !/\bAUDIT RESULT:\s*NEEDS REPAIR\b/i.test(audit);
+      const auditPass =
+        /\bAUDIT RESULT:\s*PASS\b/i.test(audit) &&
+        !/\bAUDIT RESULT:\s*NEEDS REPAIR\b/i.test(audit);
 
-const sectionProblems = validateGeneratedSections(packParts);
+      const sectionProblems = validateGeneratedSections(packParts);
+      const finalDurationCheck = validateSceneDurations(outline, seconds);
 
-const finalDurationCheck = validateSceneDurations(outline, seconds);
+      const requiredSceneParts = sceneNumbers.map(
+        (n) => `PART 2 — SCENE ${n} OF ${sceneNumbers.length}`
+      );
 
-const expectedSceneParts = Array.from(
-  { length: sceneCount },
-  (_, index) => `PART 2 — SCENE ${index + 1} OF ${sceneCount}`
-);
+      const missingScenes = requiredSceneParts.filter((prefix) =>
+        !packParts.some((part) => part.startsWith(prefix))
+      );
 
-const missingScenes = expectedSceneParts.filter(prefix =>
-  !packParts.some(part => part.startsWith(prefix))
-);
+      const pass =
+        auditPass &&
+        sectionProblems.length === 0 &&
+        finalDurationCheck.valid &&
+        missingScenes.length === 0;
 
-const pass =
-  auditSaysPass &&
-  sectionProblems.length === 0 &&
-  finalDurationCheck.valid &&
-  missingScenes.length === 0;
+      if (!pass) {
+        packParts.push(
+          "LOCAL VALIDATION — NEEDS REPAIR\n\n" +
+          [
+            ...sectionProblems,
+            ...missingScenes.map((s) => `Missing: ${s}`),
+            ...(!finalDurationCheck.valid ? [finalDurationCheck.reason] : []),
+            ...(!auditPass ? ["Hindi pumasa ang AI audit."] : [])
+          ].join("\n")
+        );
+      }
 
-if (!pass) {
-  const reasons = [
-    ...sectionProblems,
-    ...missingScenes.map(scene => `Missing: ${scene}`),
-    ...(!finalDurationCheck.valid ? [finalDurationCheck.reason] : []),
-    ...(!auditSaysPass ? ["Hindi pumasa ang AI audit."] : [])
-  ];
-
-  packParts.push(
-    "LOCAL VALIDATION — NEEDS REPAIR\n\n" +
-    [...new Set(reasons)].join("\n")
-  );
-}
-
+      showProgress(
         pass
           ? "PRODUCTION PACK — COMPLETE (AUDIT PASSED)"
           : "PRODUCTION PACK — NEEDS REPAIR"
@@ -590,9 +526,8 @@ if (!pass) {
       copy.type = "button";
       copy.textContent = "Copy Production Pack";
       copy.addEventListener("click", async () => {
-        const fullText = packParts.join("\n\n");
         try {
-          await navigator.clipboard.writeText(fullText);
+          await navigator.clipboard.writeText(packParts.join("\n\n"));
           copy.textContent = "Copied!";
         } catch {
           message("assistant", "Hindi makopya automatically. Piliin at kopyahin ang text.");
@@ -604,16 +539,12 @@ if (!pass) {
       message(
         "assistant",
         pass
-          ? "Kumpleto ang pack at pumasa sa audit. Suriin pa rin bago mag-generate ng video."
+          ? "Kumpleto ang Production Pack at pumasa sa audit. Suriin pa rin bago mag-generate."
           : "Nabuo ang pack pero NEEDS REPAIR. Huwag munang gamitin sa video generation."
       );
     } catch (error) {
       showProgress("PRODUCTION PACK — INCOMPLETE");
-      message(
-        "assistant",
-        `Hindi kumpleto ang Production Pack: ${error.message}\n` +
-        "Napanatili ang mga section na nagawa. Hindi ito mamarkahang complete."
-      );
+      message("assistant", `Hindi kumpleto ang Production Pack: ${error.message}`);
     } finally {
       setBusy(false);
     }
@@ -638,4 +569,4 @@ if (!pass) {
     });
   });
 })();
-  
+    
