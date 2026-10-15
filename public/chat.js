@@ -2,8 +2,7 @@
 (() => {
   "use strict";
 
-  const $ = (selector) => document.querySelector(selector);
-
+  const $ = (s) => document.querySelector(s);
   const input = $("#user-input");
   const sendButton = $("#send-button");
   const chat = $("#chat-messages");
@@ -11,7 +10,7 @@
   const indicator = $("#typing-indicator");
 
   if (!input || !sendButton || !chat) {
-    console.error("AI Drama Studio: Missing required HTML elements.");
+    console.error("AI Drama Studio: Required HTML elements are missing.");
     return;
   }
 
@@ -22,58 +21,48 @@
   let visualVision = "Cinematic";
   let completePlan = "";
 
-  const wait = (ms) =>
-    new Promise((resolve) => setTimeout(resolve, ms));
-
-  function addMessage(role, text) {
+  function message(role, text) {
     const el = document.createElement("div");
     el.className = `message ${role}-message`;
-
     const p = document.createElement("p");
     p.textContent = text;
-
     el.appendChild(p);
     chat.appendChild(el);
     chat.scrollTop = chat.scrollHeight;
   }
 
-  function setBusy(value, message) {
+  function setBusy(value, status = "AI is creating your drama...") {
     busy = value;
     sendButton.disabled = value;
     sendButton.textContent = value
-      ? "Creating Scenes..."
+      ? "Creating Drama..."
       : "🎬 Create Drama Plan";
 
     if (indicator) {
-      indicator.textContent =
-        message || "AI is creating your drama...";
-      indicator.classList.toggle("visible", value);
+      indicator.textContent = status;
       indicator.style.display = value ? "block" : "none";
     }
   }
 
   function selectedText(selector, fallback) {
     const el = $(selector);
-    if (!el) return fallback;
-
-    return el.selectedOptions?.[0]?.textContent?.trim()
-      || el.value
+    return el?.selectedOptions?.[0]?.textContent?.trim()
+      || el?.value
       || fallback;
   }
 
   function getRuntime() {
-    const selected = document.querySelector(
+    const el = document.querySelector(
       ".length-btn.selected, .length-btn.active, .length-btn[aria-pressed='true']"
     );
-
-    return selected?.textContent?.trim() || runtime || "5 min";
+    return el?.textContent?.trim() || runtime || "5 min";
   }
 
   function runtimeSeconds(value) {
+    if (/custom/i.test(value)) return 300;
     const match = String(value).match(/(\d+(?:\.\d+)?)/);
     const number = match ? Number(match[1]) : 5;
 
-    if (/custom/i.test(value)) return 300;
     if (/sec/i.test(value)) return Math.max(1, Math.round(number));
     if (/hour|hr/i.test(value)) return Math.round(number * 3600);
 
@@ -92,17 +81,14 @@
     const raw = await response.text();
 
     if (!response.ok) {
-      throw new Error(
-        `AI server error (${response.status}): ${raw.slice(0, 300)}`
-      );
+      throw new Error(`AI server ${response.status}: ${raw.slice(0, 250)}`);
     }
 
     let data;
-
     try {
       data = JSON.parse(raw);
     } catch {
-      throw new Error("Hindi JSON ang sagot ng AI server.");
+      throw new Error("Hindi valid JSON ang sagot ng AI server.");
     }
 
     const candidates = [
@@ -114,173 +100,199 @@
       data?.choices?.[0]?.message?.content
     ];
 
-    for (const candidate of candidates) {
-      if (typeof candidate === "string" && candidate.trim()) {
-        return candidate.trim();
-      }
+    for (const item of candidates) {
+      if (typeof item === "string" && item.trim()) return item.trim();
 
-      if (Array.isArray(candidate)) {
-        const text = candidate
-          .map((item) => item?.text || "")
-          .join("\n")
-          .trim();
-
+      if (Array.isArray(item)) {
+        const text = item.map((part) => part?.text || "").join("\n").trim();
         if (text) return text;
       }
     }
 
     throw new Error(
-      "Walang mabasang text sa AI response. Kailangan nating suriin ang server response."
+      "Walang mabasang text sa AI response. Kailangang suriin ang server response format."
     );
   }
 
-  function showOutput(titleText, text) {
+  function renderOutput(titleText, text) {
     const container = planBox || chat;
     container.style.display = "block";
     container.replaceChildren();
 
-    const title = document.createElement("h3");
-    title.textContent = titleText;
-    title.style.marginBottom = "12px";
+    const heading = document.createElement("h3");
+    heading.textContent = titleText;
+    heading.style.marginBottom = "12px";
 
     const output = document.createElement("pre");
     output.style.whiteSpace = "pre-wrap";
     output.style.overflowWrap = "anywhere";
     output.style.fontFamily = "inherit";
-    output.style.lineHeight = "1.65";
     output.style.fontSize = "14px";
+    output.style.lineHeight = "1.65";
     output.textContent = text;
 
-    container.append(title, output);
-
+    container.append(heading, output);
     return { container, output };
   }
 
-  function getSceneCount(seconds) {
-    // Target: approximately 30 seconds per scene.
-    // The final scene uses the remaining duration.
-    return Math.max(2, Math.ceil(seconds / 30));
+  function makeSceneSchedule(totalSeconds) {
+    // Aim for scenes around 12–15 seconds for short-form drama.
+    const count = Math.max(2, Math.ceil(totalSeconds / 15));
+    const base = Math.floor(totalSeconds / count);
+    const remainder = totalSeconds % count;
+
+    return Array.from({ length: count }, (_, i) =>
+      base + (i < remainder ? 1 : 0)
+    );
   }
 
-  function sceneDuration(seconds, sceneNumber, totalScenes) {
-    const normalDuration = Math.floor(seconds / totalScenes);
-    const remainder = seconds % totalScenes;
-
-    return normalDuration + (sceneNumber <= remainder ? 1 : 0);
-  }
-
-  function checkGeneratedBatch(text, firstScene, lastScene) {
-    if (!text || text.trim().length < 100) {
-      throw new Error(
-        `Kulang ang output para sa scenes ${firstScene}-${lastScene}.`
-      );
+  function validateText(text, minimum, label) {
+    if (!text || text.trim().length < minimum) {
+      throw new Error(`${label} ay masyadong maikli.`);
     }
 
     const lower = text.toLowerCase();
+    const broken = [
+      "as an ai language model",
+      "i cannot fulfill",
+      "i can't help with that"
+    ];
 
-    if (
-      lower.includes("i cannot") ||
-      lower.includes("i can't help") ||
-      lower.includes("as an ai language model")
-    ) {
-      throw new Error(
-        `Hindi nakagawa ng scenes ${firstScene}-${lastScene}. Subukan ulit.`
-      );
+    if (broken.some((phrase) => lower.includes(phrase))) {
+      throw new Error(`${label} ay hindi nagawa nang tama.`);
     }
+  }
 
-    return text.trim();
+  function sceneHeadingExists(text, number) {
+    const n = String(number).padStart(2, "0");
+    const pattern = new RegExp(
+      `(?:SCENE|EKSENA)\\s*0?${number}\\b|(?:SCENE|EKSENA)\\s*${n}\\b`,
+      "i"
+    );
+    return pattern.test(text);
   }
 
   async function createPlan() {
     if (busy) return;
 
     const idea = input.value.trim();
-
     if (!idea) {
-      addMessage("assistant", "Ilagay muna ang iyong drama idea.");
+      message("assistant", "Ilagay muna ang drama idea.");
       input.focus();
       return;
     }
 
     runtime = getRuntime();
     language = selectedText("#language", "Tagalog");
-    characterStyle = selectedText(
-      "#character-style",
-      "Realistic Human"
-    );
+    characterStyle = selectedText("#character-style", "Realistic Human");
     visualVision = selectedText("#visual-vision", "Cinematic");
 
-    const seconds = runtimeSeconds(runtime);
-    const totalScenes = getSceneCount(seconds);
-    const sceneDurations = Array.from(
-      { length: totalScenes },
-      (_, index) => sceneDuration(seconds, index + 1, totalScenes)
-    );
+    const totalSeconds = runtimeSeconds(runtime);
+    const durations = makeSceneSchedule(totalSeconds);
+    const totalScenes = durations.length;
 
-    const sceneList = sceneDurations
-      .map((duration, index) =>
-        `SCENE ${String(index + 1).padStart(2, "0")}: ${duration} seconds`
-      )
-      .join("\n");
-
-    setBusy(true, "Step 1 of 2: Creating the story and character bible...");
-    addMessage("user", `${idea}\nRuntime: ${runtime}`);
+    setBusy(true, "Yugto 1/3: Binubuo ang kuwento...");
+    message("user", `${idea}\nHaba: ${runtime}`);
 
     try {
-      const bible = await askAI(`
-ROLE: You are an experienced original drama screenwriter.
+      // STAGE 1: A complete, coherent story before scene writing.
+      const story = await askAI(`
+Ikaw ay isang mahusay na screenwriter ng orihinal na drama.
 
-USER IDEA:
+IDEYA NG USER:
 ${idea}
 
 SETTINGS:
-Language: ${language}
+Wika: ${language}
 Character style: ${characterStyle}
-Visual direction: ${visualVision}
-Total runtime: ${seconds} seconds.
+Visual vision: ${visualVision}
+Kabuuang runtime: ${totalSeconds} seconds.
 
-Create a concise but complete STORY BIBLE that will be reused for every scene.
+GUMAWA NG STORY BLUEPRINT. Huwag munang isulat ang detalyadong scenes.
 
-Required sections:
-1. TITLE
-2. GENRE AND CENTRAL HOOK
-3. COMPLETE STORY: beginning, rising conflict, climax, resolution or cliffhanger
-4. CHARACTER DNA: name, age, facial features, hair, body type, exact clothing, personality, voice, relationships
-5. LOCATIONS: visual description, time of day, important objects
-6. LOCKED CONTINUITY RULES: exact character appearances, wardrobe, props, injuries, timeline and locations
-7. ENDING: the actual final outcome of this story
+Gamitin ang mga heading na ito:
+TITLE
+GENRE
+CENTRAL HOOK
+PROTAGONIST AT LAYUNIN
+PANGUNAHING PANGANIB O CONFLICT
+SIMULA
+PAGTAAS NG TENSIYON
+CLIMAX
+ENDING
+CHARACTER BIBLE
+LOCATION BIBLE
+CONTINUITY RULES
 
-Rules:
-- Use natural, grammatically correct ${language}.
-- Make the story original and logically consistent.
-- Give each character specific, recognizable physical traits.
-- Do not use vague descriptions such as "beautiful woman" as complete character DNA.
-- Do not invent meaningless words or repeat paragraphs.
-- Make sure the ending follows from the events in the story.
-- Do not write the full scenes yet.
-- Keep the bible concise enough to be reused in scene prompts.
+MGA MAHALAGANG TUNTUNIN:
+- Gumamit ng natural, tama at madaling maintindihang ${language}.
+- Huwag isalin nang literal ang mga salitang Ingles kung magiging mali ang pangungusap.
+- Huwag gumamit ng walang-kabuluhang paglalarawan.
+- Bawat tauhan ay may malinaw na edad, mukha, buhok, pangangatawan, kasuotan at personalidad.
+- Ang kuwento ay may tiyak na sanhi at bunga.
+- Ang ending ay isang totoong pangyayari, hindi paulit-ulit na buod.
+- Para sa horror, dapat may unti-unting kakaibang pangyayari, tumitinding panganib, at malinaw na reveal o nakakatakot na ending.
+- Huwag magdagdag ng eksenang walang silbi sa kuwento.
+- Huwag ulitin ang parehong ideya para lang pahabain ang sagot.
+- Maging maikli ngunit kumpleto.
 `);
 
-      if (bible.length < 300) {
-        throw new Error(
-          "Masyadong maikli ang Story Bible. Hindi pa tayo magpapatuloy sa scenes."
-        );
-      }
+      validateText(story, 350, "Story Blueprint");
 
-      const parts = [
-        "# AI DRAMA STUDIO — COMPLETE DRAMA PLAN",
-        `TITLE / STORY BIBLE\n${bible}`,
-        `\nRUNTIME: ${seconds} seconds (${runtime})`,
-        `\nPLANNED SCENES: ${totalScenes}`,
-        "\n# COMPLETE SCENE BREAKDOWN"
+      let plan = [
+        "# AI DRAMA STUDIO — DRAMA PLAN",
+        "## STORY BLUEPRINT",
+        story,
+        `\n## RUNTIME\n${totalSeconds} seconds (${runtime})`,
+        `\n## SCENE SCHEDULE\n${durations.map((d, i) =>
+          `Scene ${String(i + 1).padStart(2, "0")}: ${d} seconds`
+        ).join("\n")}`,
+        "\n## COMPLETE SCENES"
       ];
 
-      showOutput(
-        "Creating Drama Plan",
-        parts.join("\n\n") + "\n\nNagawa ang Story Bible. Nagsisimula ang scene generation..."
-      );
+      renderOutput("Building Story Blueprint", plan.join("\n\n"));
 
-      // Generate two scenes per request to reduce truncation.
+      // STAGE 2: Define a different dramatic purpose for every scene.
+      setBusy(true, "Yugto 2/3: Binabalangkas ang magkakaibang scenes...");
+
+      const sceneMap = await askAI(`
+Ikaw ay isang drama story editor. Gumawa ng SCENE MAP batay sa story blueprint.
+
+STORY BLUEPRINT — ITO ANG SUSUNDIN:
+${story}
+
+KABUUANG HABA: ${totalSeconds} seconds.
+KABUUANG SCENES: ${totalScenes}.
+
+ITO ANG MGA NAKATAKDANG DURATION:
+${durations.map((d, i) => `Scene ${i + 1}: ${d} seconds`).join("\n")}
+
+Gumawa ng eksaktong ${totalScenes} entries. Para sa bawat scene, ilagay:
+SCENE NUMBER
+SHORT TITLE
+DRAMATIC PURPOSE
+ANO ANG BAGONG PANGYAYARI
+ANO ANG GUSTONG MAKAMIT NG TAUHAN
+ANO ANG HUMAHADLANG
+ANONG BAGONG IMPORMASYON ANG MALALAMAN
+ENDING BEAT / TRANSITION TO NEXT SCENE
+
+RULES:
+- Bawat scene ay dapat may ibang pangunahing pangyayari.
+- Huwag ulitin ang parehong pag-uusap, paglalakad o reaksyon.
+- Dapat lumala o magbago ang sitwasyon sa bawat scene.
+- Ang huling scene lamang ang magdadala sa ending o cliffhanger.
+- Huwag gumawa ng bagong ending na sumasalungat sa blueprint.
+- Gumamit ng natural na ${language}.
+- Ibalik lamang ang scene map, walang mahabang introduction.
+`);
+
+      validateText(sceneMap, totalScenes * 45, "Scene Map");
+
+      plan.push("\n## SCENE MAP\n" + sceneMap);
+      renderOutput("Creating Individual Scenes", plan.join("\n\n"));
+
+      // STAGE 3: Generate two scenes at a time using their assigned purpose.
       const batchSize = 2;
 
       for (let first = 1; first <= totalScenes; first += batchSize) {
@@ -288,182 +300,168 @@ Rules:
 
         setBusy(
           true,
-          `Step 2 of 2: Creating scenes ${first}-${last} of ${totalScenes}...`
+          `Yugto 3/3: Isinusulat ang scenes ${first}–${last} sa ${totalScenes}...`
         );
 
-        const batchSpec = [];
+        const requested = [];
 
-        for (let number = first; number <= last; number++) {
-          batchSpec.push(
-            `SCENE ${String(number).padStart(2, "0")}\n` +
-            `Duration: exactly ${sceneDurations[number - 1]} seconds`
-          );
+        for (let n = first; n <= last; n++) {
+          requested.push(`SCENE ${String(n).padStart(2, "0")} — EXACTLY ${durations[n - 1]} SECONDS`);
         }
 
-        let batch = "";
-        let lastError = null;
+        const prompt = `
+Ikaw ay isang bihasang screenwriter at AI video scene planner.
 
-        // One retry for a failed or obviously incomplete batch.
-        for (let attempt = 1; attempt <= 2; attempt++) {
-          try {
-            batch = await askAI(`
-ROLE: You are writing production-ready scenes for an original drama.
+STORY BLUEPRINT — LOCKED:
+${story}
 
-STORY BIBLE — LOCKED, DO NOT CHANGE:
-${bible}
+SCENE MAP — LOCKED:
+${sceneMap}
 
-USER'S ORIGINAL IDEA:
+IDEYA NG USER:
 ${idea}
 
 SETTINGS:
 Language: ${language}
 Character style: ${characterStyle}
 Visual direction: ${visualVision}
-Total runtime: exactly ${seconds} seconds.
-Total scenes: ${totalScenes}.
+Total runtime: ${totalSeconds} seconds.
 
-WRITE ONLY THESE SCENES:
-${batchSpec.join("\n\n")}
+ISULAT LAMANG ANG MGA SCENE NA ITO:
+${requested.join("\n")}
 
-For EACH requested scene, include all of these fields:
-
+Para sa BAWAT scene, gamitin ang mga heading:
 SCENE NUMBER AND TITLE
-EXACT DURATION
+DURATION
+DRAMATIC PURPOSE
 LOCATION AND TIME
 CHARACTERS PRESENT
-CHARACTER APPEARANCE AND WARDROBE
-OPENING VISUAL
-ACTION: describe the events in clear sequential order
-EMOTION AND FACIAL EXPRESSIONS
-DIALOGUE: identify each speaker; use natural ${language}
-CAMERA: framing and movement
+ACTION IN SEQUENTIAL ORDER
+DIALOGUE
+FACIAL EXPRESSIONS AND EMOTION
+CAMERA DIRECTION
 LIGHTING AND COLOR
-SOUND AND AMBIENCE
-AI VIDEO VISUAL PROMPT: a detailed standalone prompt that can be used without reading the previous scene
-NEGATIVE PROMPT: visual errors, extra people, face changes, wardrobe changes, distorted hands, text artifacts
-CONTINUITY LINK: explain how this scene follows the previous scene and what must carry into the next
+SOUND
+AI VIDEO PROMPT
+NEGATIVE PROMPT
+CONTINUITY TO NEXT SCENE
 
-RULES:
-- Write every requested scene, not just a summary.
-- Do not include other scene numbers.
-- Do not change character names, ages, faces, hairstyles, clothes, locations or established facts.
-- Do not add a new major character unless the story bible requires one.
-- Dialogue must be natural and complete, not cut off.
-- Match the scene's exact assigned duration. Keep actions and dialogue realistic for that duration.
-- The events must move the story forward.
-- Preserve chronological order.
-- Do not skip directly to the ending unless this is the final scene.
-- The final scene must resolve the story or deliver the story bible's planned cliffhanger.
-- Do not claim a scene is complete if it is incomplete.
-- Use clear headings and concise production-ready instructions.
-${attempt === 2 ? "\nIMPORTANT: The previous attempt was incomplete. Return every requested scene with all required fields and finish every sentence." : ""}
+QUALITY RULES:
+1. Sundin ang eksaktong dramatic purpose ng bawat scene map entry.
+2. Ang bawat scene ay dapat may bagong pangyayari at malinaw na pagbabago sa sitwasyon.
+3. Huwag ulitin ang opening shot sa lahat ng scenes.
+4. Huwag ulitin ang dialogue o action mula sa naunang scene.
+5. Gumamit ng natural at tamang ${language}; iwasan ang literal na salin mula sa Ingles.
+6. Huwag gumamit ng mga heading na walang kabuluhan o maling Filipino.
+7. Ang character details ay dapat tumugma sa blueprint. Banggitin lamang ang mahahalagang detalye sa scene, huwag kopyahin ang buong character bible.
+8. Ang dialogue ay dapat may dahilan, may natural na sagot, at may epekto sa kuwento.
+9. Ang visual prompt ay dapat malinaw na naglalarawan ng nakikitang aksyon, itsura, setting at camera.
+10. Ang negative prompt ay dapat tumukoy sa mga posibleng visual inconsistency, hindi sa malabong parirala.
+11. Huwag maglagay ng bagong pangunahing karakter o bagong ending na wala sa blueprint.
+12. Kumpletuhin ang lahat ng requested scenes at pangungusap.
+13. Huwag magsulat ng ibang scene numbers.
+14. Huwag magbigay ng quality-check claim na hindi napatunayan.
+
+Para sa huling scene, isagawa ang ending na nasa blueprint.
 `);
 
-            checkGeneratedBatch(batch, first, last);
-            lastError = null;
+        let batch = "";
+        let batchError = null;
+
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          try {
+            batch = await askAI(
+              prompt +
+              (attempt === 2
+                ? "\nRETRY: Isulat nang mas malinaw at kumpleto ang bawat requested scene. Iwasan ang pag-uulit."
+                : "")
+            );
+
+            validateText(batch, 180, `Scenes ${first}–${last}`);
+
+            const missing = [];
+            for (let n = first; n <= last; n++) {
+              if (!sceneHeadingExists(batch, n)) missing.push(n);
+            }
+
+            if (missing.length) {
+              throw new Error(
+                `Hindi nakita ang scene heading: ${missing.join(", ")}`
+              );
+            }
+
+            batchError = null;
             break;
           } catch (error) {
-            lastError = error;
-            if (attempt < 2) await wait(800);
+            batchError = error;
           }
         }
 
-        if (lastError) {
+        if (batchError) {
           throw new Error(
-            `Hindi nakumpleto ang scenes ${first}-${last}. ${lastError.message}`
+            `Hindi nakumpleto ang scenes ${first}–${last}: ${batchError.message}`
           );
         }
 
-        parts.push(batch);
-        const currentText = parts.join("\n\n");
-
-        const container = planBox || chat;
-        const output = container.querySelector("pre");
-
-        if (output) output.textContent = currentText;
-
-        await wait(150);
+        plan.push("\n" + batch);
+        renderOutput("Creating Individual Scenes", plan.join("\n\n"));
       }
 
-      const finalPlan = parts.join("\n\n");
+      completePlan = plan.join("\n\n");
 
-      // Check for every planned scene heading before marking the plan ready.
+      // Structural validation only; this is not a guarantee of story quality.
       const missingScenes = [];
-
-      for (let number = 1; number <= totalScenes; number++) {
-        const heading = new RegExp(
-          `SCENE\\s*0?${number}\\b`,
-          "i"
-        );
-
-        if (!heading.test(finalPlan)) {
-          missingScenes.push(number);
-        }
+      for (let n = 1; n <= totalScenes; n++) {
+        if (!sceneHeadingExists(completePlan, n)) missingScenes.push(n);
       }
 
-      if (missingScenes.length > 0) {
+      if (missingScenes.length) {
         throw new Error(
-          `May kulang na scene number: ${missingScenes.join(", ")}. Hindi minarkahang kumpleto ang plan.`
+          `May nawawalang scene number: ${missingScenes.join(", ")}`
         );
       }
 
-      completePlan = finalPlan;
+      const finalText =
+        completePlan +
+        "\n\n## REVIEW STATUS\n" +
+        `Nakita ang lahat ng ${totalScenes} planned scene headings.\n` +
+        "Hindi pa awtomatikong napatutunayan ang kalidad ng dialogue o eksaktong runtime. Suriin ang lahat bago aprubahan.\n" +
+        "VIDEO GENERATION: NOT STARTED";
 
-      const container = planBox || chat;
-      const output = container.querySelector("pre");
-
-      if (output) {
-        output.textContent =
-          finalPlan +
-          "\n\n# REVIEW STATUS\n" +
-          "All planned scene numbers were found in the generated text.\n" +
-          "Please review the story, dialogue, continuity and durations before approval.\n" +
-          "Video generation has NOT started.";
-      }
+      const rendered = renderOutput("Drama Plan — Ready for Review", finalText);
 
       const copyButton = document.createElement("button");
       copyButton.type = "button";
       copyButton.textContent = "Copy Complete Drama Plan";
       copyButton.style.marginTop = "12px";
       copyButton.style.padding = "10px";
-      copyButton.style.cursor = "pointer";
 
       copyButton.addEventListener("click", async () => {
         try {
-          await navigator.clipboard.writeText(completePlan);
+          await navigator.clipboard.writeText(finalText);
           copyButton.textContent = "Copied!";
         } catch {
-          addMessage(
-            "assistant",
-            "Hindi makopya automatic. Piliin ang plan at kopyahin ito."
-          );
+          message("assistant", "Piliin at kopyahin ang text kung hindi gumana ang automatic copy.");
         }
       });
 
-      container.appendChild(copyButton);
+      rendered.container.appendChild(copyButton);
 
-      addMessage(
+      message(
         "assistant",
-        `Nagawa ang drama plan: ${totalScenes} planned scenes, ${seconds} seconds total. Suriin muna ang lahat. Hindi pa nagsisimula ang video generation.`
+        `Tapos na ang structural scene check: ${totalScenes} scene headings ang nakita. Basahin ang buong kuwento at scenes; hindi pa nagsisimula ang video generation.`
       );
     } catch (error) {
-      console.error("Drama plan generation failed:", error);
-
-      addMessage(
-        "assistant",
-        `Hindi pa kumpleto ang drama plan: ${error.message}`
-      );
+      console.error("Drama plan error:", error);
+      message("assistant", `Hindi pa kumpleto ang plan: ${error.message}`);
 
       const container = planBox || chat;
-
-      if (container.style.display !== "none") {
-        const status = document.createElement("p");
-        status.style.color = "#a15c00";
-        status.style.marginTop = "12px";
-        status.textContent =
-          "INCOMPLETE — Huwag munang aprubahan. Tingnan ang error sa ibaba ng chat.";
-        container.appendChild(status);
-      }
+      const warning = document.createElement("p");
+      warning.style.color = "#a15c00";
+      warning.style.marginTop = "10px";
+      warning.textContent =
+        "INCOMPLETE — Huwag munang aprubahan. Tingnan ang error sa chat.";
+      container.appendChild(warning);
     } finally {
       setBusy(false);
     }
@@ -496,6 +494,6 @@ ${attempt === 2 ? "\nIMPORTANT: The previous attempt was incomplete. Return ever
     });
   });
 
-  console.log("AI Drama Studio: scene-by-scene generator loaded.");
+  console.log("AI Drama Studio: story-first scene workflow loaded.");
 })();
-          
+                   
