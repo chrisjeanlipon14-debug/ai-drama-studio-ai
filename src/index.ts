@@ -1,9 +1,14 @@
 
 interface Env {
   AI: {
-    run: (model: string, inputs: Record<string, unknown>) => Promise<unknown>;
+    run(
+      model: string,
+      inputs: Record<string, unknown>
+    ): Promise<unknown>;
   };
-  ASSETS?: { fetch: (request: Request) => Promise<Response> };
+  ASSETS: {
+    fetch(request: Request): Promise<Response>;
+  };
 }
 
 const MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
@@ -13,217 +18,326 @@ function json(data: unknown, status = 200): Response {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store"
-    }
+      "Cache-Control": "no-store",
+    },
   });
 }
 
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
+function extractText(result: unknown): string {
+  if (typeof result === "string") return result;
 
-function extractText(value: any): string {
-  if (typeof value === "string") return value;
-  if (!value || typeof value !== "object") return "";
+  if (result && typeof result === "object") {
+    const value = result as Record<string, unknown>;
 
-  const candidates = [
-    value.response,
-    value.result?.response,
-    value.output,
-    value.content,
-    value.message?.content,
-    value.choices?.[0]?.message?.content
-  ];
+    if (typeof value.response === "string") {
+      return value.response;
+    }
 
-  for (const item of candidates) {
-    if (typeof item === "string" && item.trim()) return item.trim();
+    if (typeof value.text === "string") {
+      return value.text;
+    }
 
-    if (Array.isArray(item)) {
-      const text = item
-        .map((part: any) => typeof part?.text === "string" ? part.text : "")
-        .join("\n")
-        .trim();
+    if (Array.isArray(value.content)) {
+      return value.content
+        .map((part) => {
+          if (typeof part === "string") return part;
 
-      if (text) return text;
+          if (part && typeof part === "object") {
+            const item = part as Record<string, unknown>;
+            return typeof item.text === "string" ? item.text : "";
+          }
+
+          return "";
+        })
+        .filter(Boolean)
+        .join("\n");
     }
   }
 
   return "";
 }
 
-async function handleChat(request: Request, env: Env) {
-  let body: Record<string, unknown>;
+async function generate(
+  env: Env,
+  system: string,
+  prompt: string,
+  maxTokens = 1800
+): Promise<string> {
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: prompt },
+    ],
+    max_tokens: maxTokens,
+    temperature: 0.65,
+  });
 
+  const text = extractText(result).trim();
+
+  if (!text) {
+    throw new Error("Walang tekstong ibinalik ang AI model.");
+  }
+
+  return text;
+}
+
+function getSceneCount(minutes: number): number {
+  if (minutes <= 1) return 4;
+  if (minutes <= 3) return 8;
+  if (minutes <= 5) return 10;
+  return 16;
+}
+
+function getLanguageRules(language: string): string {
+  if (language.toLowerCase().includes("english")) {
+    return `
+Write all story content and dialogue in natural, fluent English.
+Avoid literal translations and repetitive expressions.
+`;
+  }
+
+  if (language.toLowerCase().includes("taglish")) {
+    return `
+Use natural Filipino Taglish, the way real Filipinos speak.
+Use English only where it sounds natural.
+Do not force English words into every sentence.
+`;
+  }
+
+  return `
+Write in natural, conversational Filipino Tagalog.
+Use words that ordinary Filipinos genuinely say.
+Avoid awkward, literal, robotic, or overly formal translations.
+Do not use random English words just to sound dramatic.
+`;
+}
+
+function looksRepetitive(text: string): boolean {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim().toLowerCase())
+    .filter((line) => line.length > 25);
+
+  const seen = new Set<string>();
+  let repeats = 0;
+
+  for (const line of lines) {
+    if (seen.has(line)) repeats++;
+    seen.add(line);
+  }
+
+  return repeats >= 3;
+}
+
+async function handleChat(request: Request, env: Env): Promise<Response> {
   try {
-    body = await request.json() as Record<string, unknown>;
-  } catch {
-    return json({ error: "Hindi mabasa ang request. Subukan muli." }, 400);
-  }
+    const body = (await request.json()) as Record<string, unknown>;
 
-  const idea = typeof body.idea === "string" ? body.idea.trim() : "";
+    const idea = String(body.idea || "").trim();
+    const language = String(body.language || "Tagalog");
+    const genre = String(body.genre || "Drama");
+    const style = String(body.visualStyle || "Cinematic realistic");
 
-  if (idea.length < 8) {
-    return json({ error: "Maglagay muna ng mas malinaw na drama idea." }, 400);
-  }
+    const requestedMinutes = Number(
+      body.durationMinutes || 1
+    );
 
-  const language = String(body.language || "Tagalog");
-  const genre = String(body.genre || "Horror");
-  const style = String(body.visualStyle || "Cinematic realistic");
-  const minutes = Math.min(10, Math.max(1, Number(body.durationMinutes) || 5));
+    const minutes = Number.isFinite(requestedMinutes)
+      ? Math.min(10, Math.max(1, Math.round(requestedMinutes)))
+      : 1;
 
-  const sceneCount =
-    minutes <= 1 ? "4–6" :
-    minutes <= 3 ? "8–12" :
-    minutes <= 5 ? "12–16" : "18–24";
+    const sceneCount = getSceneCount(minutes);
 
-  const prompt = `
-IKAW ANG:
-Head screenwriter at production planner ng AI Drama Studio.
-Gumagawa ka ng orihinal, emosyonal, malinaw, at de-kalidad na drama plan.
+    if (idea.length < 8) {
+      return json(
+        {
+          success: false,
+          error: "Maglagay ng mas malinaw na ideya ng drama. Gumamit ng hindi bababa sa 8 character.",
+        },
+        400
+      );
+    }
 
-IDEYA NG USER:
-${idea}
+    const languageRules = getLanguageRules(language);
 
-SETTINGS:
-Wika: ${language}
-Genre: ${genre}
-Visual style: ${style}
-Haba: ${minutes} minuto
-Target scenes: ${sceneCount}
+    const system = `
+You are an experienced original short-drama screenwriter and video production planner.
 
-MAHIGPIT NA TUNTUNIN SA WIKA:
-- Kung Tagalog ang pinili, gumamit ng natural at wastong Filipino.
-- Huwag magsalin nang literal mula sa Ingles.
-- Huwag gumamit ng sirang parirala gaya ng "relasyon na naglalayon ng kaniyang buhay",
-  "pagpapahalintulad sa pag-ibig", o "nagkakaroon ng pagtatawa".
-- Gumamit ng mga salitang ginagamit talaga ng mga tao sa pang-araw-araw na usapan.
-- Ang dialogue ay dapat natural, may emosyon, may dahilan, at may kaugnayan sa sagot ng kausap.
-- Iwasan ang paulit-ulit na "siya ay" at ang mga pangungusap na iisa ang ibig sabihin.
-- Huwag ulitin ang parehong ideya sa summary, scene description, at dialogue.
-
-PAGBUO NG KUWENTO:
-1. May malinaw na pangunahing tauhan at layunin.
-2. May tunay na problema na may dahilan at epekto.
-3. Malakas ang opening hook sa unang bahagi ng kuwento.
-4. Bawat scene ay may sariling layunin at bagong pangyayari.
-5. Unti-unting tumitindi ang conflict.
-6. Ang climax ay bunga ng mga naunang desisyon ng mga tauhan.
-7. May makabuluhang ending o cliffhanger.
-8. Huwag palitan ang ideya ng user ng kuwentong walang kaugnayan.
-9. Para sa romance, ipakita kung bakit nagkakagusto ang mga tauhan sa isa't isa.
-   Dapat may chemistry, tiwala, hindi pagkakaunawaan, at emosyonal na pagbabago.
-10. Kung may pagtataksil, linawin kung sino ang nagtaksil at bakit mahalaga ito sa kuwento.
-11. Para sa horror, bumuo ng suspense at malinaw na nakakatakot na pangyayari.
-12. Para sa comedy, malinaw ang setup at punchline; iwasan ang OA na dialogue kung hindi hinihingi.
-13. Huwag magdagdag ng filler scenes para lamang mapahaba ang output.
-
-CHARACTER CONSISTENCY:
-Para sa bawat pangunahing tauhan, ilagay ang:
-- Pangalan at edad
-- Papel sa kuwento
-- Mukha, buhok, pangangatawan at kasuotan
-- Personalidad at paraan ng pagsasalita
-- Layunin at kinatatakutan
-- Relasyon sa ibang tauhan
-
-Dapat magkakaiba ang mga tauhan. Huwag bigyan ang lahat ng parehong buhok,
-kulay ng mata, damit, personalidad o motibasyon maliban kung may dahilan.
-Panatilihing pareho ang kanilang itsura at kasuotan sa bawat scene.
-
-GAMITIN ANG MGA SEKSYONG ITO:
-
-1. PAMAGAT
-Gumawa ng maikli, natatangi at madaling tandaan na pamagat.
-
-2. OPENING HOOK
-Isang tiyak at nakakakuryosong pangyayari, hindi malabong paglalarawan.
-
-3. STORY SUMMARY
-Ilarawan ang simula, paglala ng problema, climax at ending.
-Huwag ulitin ang parehong impormasyon.
-
-4. CHARACTER BIBLE
-Ibigay ang kumpleto at magkakaibang detalye ng mga tauhan.
-
-5. LOCATION AT VISUAL CONTINUITY
-Ilista ang mga lugar, oras, props, kulay, kasuotan at visual details
-na dapat manatiling pareho sa buong kuwento.
-
-6. SCENE-BY-SCENE BREAKDOWN
-Gumawa ng humigit-kumulang ${sceneCount} scenes ayon sa haba ng video.
-
-Para sa BAWAT scene, ilagay ang:
-- SCENE NUMBER AT PAMAGAT
-- Duration
-- Layunin ng scene
-- Lokasyon at oras
-- Mga tauhan at kanilang consistent appearance
-- Action: sunod-sunod na nakikitang kilos
-- Dialogue: natural na linya na may pangalan ng nagsasalita
-- Facial expression at emosyon
-- Camera direction
-- Lighting at sound
-- AI video prompt
-- Negative prompt
-- Transition o pangyayaring magtutulak sa susunod na scene
-
-7. NATURAL DIALOGUE
-Magbigay ng mahahalagang linya na natural pakinggan at akma sa personalidad.
-
-8. CAMERA, LIGHTING AT SOUND
-Magbigay ng tiyak na shot, camera movement, liwanag at tunog.
-
-9. AI VIDEO PROMPT BAWAT SCENE
-Bawat prompt ay dapat sariling kumpletong paglalarawan ng tauhan,
-kasuotan, lokasyon, nakikitang kilos, emosyon, camera at visual style.
-Huwag gumamit ng malabong prompt gaya ng "isang babae ay umuuwi".
-
-10. NEGATIVE PROMPT
-Iwasan ang pagbabago ng mukha at damit, maling anatomy, dagdag na daliri,
-hindi kailangang text, visual glitches at inconsistent na props.
-
-11. ENDING O CLIFFHANGER
-Dapat may aktuwal na pangyayari at emosyonal na epekto.
-Huwag gawing ending ang simpleng pagtatawanan lamang maliban kung iyon
-ang malinaw na layunin ng kuwento.
-
-12. CONTINUITY CHECK
-Ilista ang kailangang manatiling pareho.
-Huwag sabihing pumasa ang quality checks kung hindi talaga napatunayan.
-
-HULING MGA TUNTUNIN:
-- Huwag mag-iwan ng placeholder gaya ng "Main Character".
-- Huwag gumawa ng walang-kabuluhang o paulit-ulit na pangungusap.
-- Huwag magbigay ng eksenang walang silbi sa kuwento.
-- Huwag mag-claim na nakagawa ng video.
-- Written drama plan lamang ang endpoint na ito.
-- Unahin ang natural na wika, malinaw na kuwento at kapaki-pakinabang na scene prompts.
+QUALITY RULES:
+- Create a coherent, original story with cause and effect.
+- Every character must have a clear motivation.
+- Dialogue must sound like real people speaking.
+- Never translate English expressions word-for-word into Filipino.
+- Never repeat dialogue just to fill space.
+- Every scene must change the situation, reveal information, or raise the stakes.
+- Give characters distinct voices and reactions.
+- Do not add random actions, body parts, objects, or visual details that have no story purpose.
+- Avoid generic filler such as "biglang may nangyari" without explaining what happened.
+- Keep the characters, clothing, locations, and timeline consistent.
+- Follow the requested genre and visual style.
+- Do not copy existing movies, dramas, or copyrighted characters.
+- Follow the user's story idea instead of replacing it with an unrelated plot.
+${languageRules}
 `;
 
-  try {
-    const result = await env.AI.run(MODEL, {
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a professional original screenwriter. " +
-            "Write coherent stories with natural language, cause-and-effect plots, " +
-            "specific scenes, consistent characters, and no repetitive filler. " +
-            "Follow the user's selected language."
-        },
-        { role: "user", content: prompt }
-      ],
-      max_tokens: 4500,
-      temperature: 0.55
-    });
+    // STAGE 1: Build a specific story and continuity guide.
+    const storyGuide = await generate(
+      env,
+      system,
+      `
+Create the STORY BLUEPRINT for this original drama.
 
-    const plan = extractText(result);
+USER'S IDEA:
+${idea}
 
-    if (!plan) {
-      return json({
-        error: "Walang mabasang text mula sa AI response. Kailangang suriin ang model response."
-      }, 502);
+GENRE: ${genre}
+LANGUAGE: ${language}
+VISUAL STYLE: ${style}
+TARGET LENGTH: ${minutes} minute(s)
+EXACT SCENE COUNT: ${sceneCount}
+
+Write these sections:
+
+1. TITLE
+Create one short, memorable title.
+
+2. STORY PREMISE
+Explain the specific central conflict in 3–5 sentences.
+Include what the lead character wants, what blocks them, and what is at risk.
+
+3. CHARACTER BIBLE
+Create 2–4 important characters.
+For each, state their name, approximate age, appearance, personality, motivation, and relationship to the other characters.
+
+4. CONTINUITY LOCK
+Specify the consistent clothing, locations, important objects, time of day, and relationships.
+
+5. BEGINNING, MIDDLE, ENDING
+Give a concrete event for each part.
+The ending must resolve the central conflict or deliver a meaningful twist.
+
+6. SCENE MAP
+List exactly ${sceneCount} numbered scenes.
+Each scene must have a distinct purpose and a specific event.
+Show how the result of one scene causes the next.
+Do not write the full dialogue yet.
+
+Keep this blueprint compact but specific.
+Do not use vague filler or repeat the same event.
+`,
+      1900
+    );
+
+    // STAGE 2: Generate scenes in small batches for better control.
+    const batchSize = 4;
+    const batches: string[] = [];
+
+    for (let start = 1; start <= sceneCount; start += batchSize) {
+      const end = Math.min(start + batchSize - 1, sceneCount);
+
+      const scenePrompt = `
+Use the following approved story blueprint as the source of truth.
+Do not change the characters, their motivations, the setting, or the main plot.
+
+STORY BLUEPRINT:
+${storyGuide}
+
+TASK:
+Write scenes ${start} through ${end} only, out of ${sceneCount} total scenes.
+
+For EVERY scene, use this exact structure:
+
+SCENE [number] — [short, specific title]
+DURATION: [estimated seconds]
+
+STORY ACTION:
+Describe what the audience actually sees. Include a clear action, reaction, and meaningful change in the situation. Avoid vague descriptions.
+
+DIALOGUE:
+Write 2–4 short, natural lines when dialogue is appropriate.
+Format each line as CHARACTER NAME: spoken words.
+Make each character sound different.
+Do not repeat a line from another scene.
+If silence is more powerful, briefly explain why.
+
+CAMERA:
+Give one practical camera direction that matches the action.
+
+LIGHTING AND SOUND:
+Specify appropriate lighting and one or two relevant sound details.
+
+VIDEO GENERATION PROMPT:
+Write one self-contained visual prompt in ${style} style.
+Include the characters present, their consistent appearance, location, action, emotion, camera movement, lighting, and atmosphere.
+Describe only what should be visible in this scene.
+Do not include subtitles, logos, watermarks, or extra characters unless the story requires them.
+
+NEGATIVE PROMPT:
+List visual errors to avoid, such as distorted hands, changing faces, inconsistent clothing, duplicate characters, flickering, and unwanted text.
+
+IMPORTANT:
+- Follow the scene map in the blueprint.
+- Scenes must be different from one another.
+- Keep dialogue believable and concise.
+- Do not summarize future scenes.
+- Do not add a new twist that contradicts the blueprint.
+- Do not write scenes outside ${start}–${end}.
+- Keep each video prompt usable on its own.
+${languageRules}
+`;
+
+      let batch = await generate(
+        env,
+        system,
+        scenePrompt,
+        1800
+      );
+
+      // One targeted retry if the batch contains obvious repeated lines.
+      if (looksRepetitive(batch)) {
+        batch = await generate(
+          env,
+          system,
+          `
+Rewrite these scenes with natural, distinct dialogue and clearer actions.
+Keep the approved blueprint and scene numbers unchanged.
+Remove repeated dialogue and redundant descriptions.
+Do not invent new plot events.
+
+BLUEPRINT:
+${storyGuide}
+
+SCENES TO IMPROVE:
+${batch}
+
+Write only the improved scenes ${start} through ${end}.
+${languageRules}
+`,
+          1800
+        );
+      }
+
+      batches.push(batch);
     }
+
+    const plan = `
+AI DRAMA STUDIO
+COMPLETE DRAMA PRODUCTION PLAN
+
+TITLE AND STORY BLUEPRINT
+${storyGuide}
+
+==================================================
+
+SCENE-BY-SCENE PRODUCTION PLAN
+
+${batches.join("\n\n==================================================\n\n")}
+
+==================================================
+
+FINAL CONTINUITY CHECK
+Before production, confirm that the same character names, appearance, clothing, locations, and important objects remain consistent throughout the scenes. If the video generator changes a character's appearance, use the character bible as the reference.
+`.trim();
 
     return json({
       success: true,
@@ -231,10 +345,22 @@ HULING MGA TUNTUNIN:
       model: MODEL,
       durationMinutes: minutes,
       language,
-      genre
+      genre,
+      sceneCount,
     });
   } catch (error) {
-    return json({ error: errorText(error) }, 500);
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Hindi inaasahang error sa pagbuo ng drama.";
+
+    return json(
+      {
+        success: false,
+        error: `Hindi nabuo ang drama plan. ${message}`,
+      },
+      500
+    );
   }
 }
 
@@ -247,21 +373,21 @@ export default {
         status: 204,
         headers: {
           "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
-        }
+        },
       });
     }
 
-    if (request.method === "GET" && url.pathname === "/api/health") {
+    if (url.pathname === "/api/health" && request.method === "GET") {
       return json({
         ok: true,
         service: "AI Drama Studio",
-        model: MODEL
+        model: MODEL,
       });
     }
 
-    if (request.method === "POST" && url.pathname === "/api/chat") {
+    if (url.pathname === "/api/chat" && request.method === "POST") {
       return handleChat(request, env);
     }
 
@@ -269,8 +395,6 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
-    return new Response("Missing static asset configuration.", {
-      status: 500
-    });
-  }
+    return json({ success: false, error: "Hindi nahanap ang page." }, 404);
+  },
 };
