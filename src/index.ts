@@ -30,22 +30,14 @@ function extractText(result: unknown): string {
   if (typeof value.text === "string") return value.text;
 
   if (Array.isArray(value.content)) {
-    return value.content
-      .map((part) => {
-        if (typeof part === "string") return part;
-
-        if (
-          part &&
-          typeof part === "object" &&
-          typeof (part as Record<string, unknown>).text === "string"
-        ) {
-          return (part as Record<string, unknown>).text as string;
-        }
-
-        return "";
-      })
-      .filter(Boolean)
-      .join("\n");
+    return value.content.map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") {
+        const part = item as Record<string, unknown>;
+        if (typeof part.text === "string") return part.text;
+      }
+      return "";
+    }).filter(Boolean).join("\n");
   }
 
   return "";
@@ -55,7 +47,7 @@ async function generate(
   env: Env,
   system: string,
   prompt: string,
-  maxTokens = 1500
+  maxTokens = 1400
 ): Promise<string> {
   const result = await env.AI.run(MODEL, {
     messages: [
@@ -63,78 +55,102 @@ async function generate(
       { role: "user", content: prompt },
     ],
     max_tokens: maxTokens,
-    temperature: 0.45,
+    temperature: 0.4,
   });
 
   const output = extractText(result).trim();
-
-  if (!output) {
-    throw new Error("Walang tekstong ibinalik ang AI model.");
-  }
-
+  if (!output) throw new Error("Walang output mula sa AI model.");
   return output;
 }
 
-function sceneCountFor(minutes: number): number {
-  if (minutes <= 1) return 4;
+function getSceneCount(minutes: number): number {
+  if (minutes === 1) return 4;
   if (minutes <= 3) return 8;
   if (minutes <= 5) return 10;
   return 16;
 }
 
-function languageInstruction(language: string): string {
-  const value = language.toLowerCase();
+function languageRules(language: string): string {
+  const lang = language.toLowerCase();
 
-  if (value.includes("english")) {
-    return "Write all story text and dialogue in natural, fluent English. Avoid repetition and literal translation.";
+  if (lang.includes("english")) {
+    return "Write in natural, fluent English. Avoid repetition and literal translations.";
   }
 
-  if (value.includes("taglish")) {
-    return "Write in natural Filipino Taglish, like real Filipinos speak. Do not force English into every line.";
+  if (lang.includes("taglish")) {
+    return "Use natural Filipino Taglish, like real Filipinos speak. Do not force English into every sentence.";
   }
 
   return `
 Write in natural, conversational Filipino Tagalog.
-Use common words that Filipinos actually say.
-Prefer short, believable dialogue.
-NEVER use awkward literal translations such as:
-"mata ng lawak", "lugar ng pangingibabaw",
+Use words ordinary Filipinos actually say.
+Avoid literal translations, awkward grammar, and robotic dialogue.
+Never use phrases like "mata ng lawak", "kotseng naka-tatag",
 or "bakit mo nangangako ng mga tanong".
-Describe a character's appearance in ordinary, clear language.
-Do not translate English idioms word-for-word.
+Describe appearance clearly and briefly.
+Do not repeat the same physical trait again and again.
 `;
 }
 
-function hasRepeatedLines(text: string): boolean {
-  const lines = text
-    .split("\n")
-    .map((line) => line.trim().toLowerCase())
-    .filter((line) => line.length >= 22);
+function normalize(text: string): string {
+  return text.toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasExcessiveRepetition(text: string): boolean {
+  const normalized = normalize(text);
+  const lines = text.split("\n")
+    .map((line) => normalize(line))
+    .filter((line) => line.length >= 35);
 
   const counts = new Map<string, number>();
 
   for (const line of lines) {
-    counts.set(line, (counts.get(line) || 0) + 1);
+    const count = (counts.get(line) || 0) + 1;
+    counts.set(line, count);
+    if (count >= 3) return true;
   }
 
-  return Array.from(counts.values()).some((count) => count >= 3);
+  const words = normalized.split(" ");
+  const phrases = new Map<string, number>();
+
+  for (let i = 0; i <= words.length - 6; i++) {
+    const phrase = words.slice(i, i + 6).join(" ");
+    if (phrase.length < 25) continue;
+
+    const count = (phrases.get(phrase) || 0) + 1;
+    phrases.set(phrase, count);
+    if (count >= 4) return true;
+  }
+
+  return false;
 }
 
-function hasSceneHeadings(
+function sceneHeadingsPresent(
   text: string,
   start: number,
   end: number
 ): boolean {
-  for (let n = start; n <= end; n++) {
-    const heading = new RegExp(
-      "SCENE\\s+" + n + "\\s*[-—:]",
+  for (let number = start; number <= end; number++) {
+    const pattern = new RegExp(
+      "SCENE\\s+" + number + "\\s*[-—:]",
       "i"
     );
-
-    if (!heading.test(text)) return false;
+    if (!pattern.test(text)) return false;
   }
-
   return true;
+}
+
+function sceneDurations(minutes: number, count: number): number[] {
+  const totalSeconds = minutes * 60;
+  const base = Math.floor(totalSeconds / count);
+  const remainder = totalSeconds % count;
+
+  return Array.from({ length: count }, (_, index) =>
+    base + (index < remainder ? 1 : 0)
+  );
 }
 
 async function handleChat(
@@ -147,146 +163,201 @@ async function handleChat(
     const idea = String(body.idea || "").trim();
     const language = String(body.language || "Tagalog");
     const genre = String(body.genre || "Drama");
-    const style = String(
-      body.visualStyle || "Cinematic realistic"
-    );
+    const style = String(body.visualStyle || "Cinematic realistic");
 
-    const rawMinutes = Number(body.durationMinutes || 1);
-
-    const minutes = Number.isFinite(rawMinutes)
-      ? Math.min(10, Math.max(1, Math.round(rawMinutes)))
+    const requestedMinutes = Number(body.durationMinutes || 1);
+    const minutes = Number.isFinite(requestedMinutes)
+      ? Math.min(10, Math.max(1, Math.round(requestedMinutes)))
       : 1;
 
-    const totalScenes = sceneCountFor(minutes);
-
     if (idea.length < 8) {
-      return json(
-        {
-          success: false,
-          error:
-            "Maglagay ng mas malinaw na ideya ng drama (hindi bababa sa 8 character).",
-        },
-        400
-      );
+      return json({
+        success: false,
+        error: "Maglagay ng mas malinaw na ideya ng drama.",
+      }, 400);
     }
 
-    const lang = languageInstruction(language);
+    const count = getSceneCount(minutes);
+    const durations = sceneDurations(minutes, count);
+    const lang = languageRules(language);
 
-    const system = [
-      "You are a professional original short-drama screenwriter and film production planner.",
-      "STORY LOGIC: Every event must have a clear cause and consequence. Every scene changes the situation, reveals evidence, deepens a relationship, or raises stakes.",
-      "CHARACTER LOGIC: Characters have distinct motivations. They do not know information unless they learned it in the story. Never confuse whose mother, diary, letter, or secret is being discussed.",
-      "DIALOGUE: Short, specific, believable lines. Do not repeat the same question or answer across scenes. No filler dialogue.",
-      "VISUALS: Describe things a camera can actually show. Avoid vague phrases, impossible actions, random details, and generic descriptions.",
-      "ORIGINALITY: Follow the user's idea and requested genre. Do not copy existing stories or characters.",
-      lang,
-    ].join("\n");
+    const system = `
+You are a professional original drama screenwriter and video production planner.
 
-    // STAGE 1: Create a specific story blueprint.
+STORY:
+Create a logical, emotional, specific story with a beginning, escalation, reveal, and ending.
+Every scene must change the situation or reveal important information.
+Never replace the user's story idea with an unrelated story.
+Characters must have consistent identities, relationships, knowledge, and motivations.
+
+DIALOGUE:
+Write natural, believable dialogue.
+Never repeat the same question, answer, or sentence in different scenes.
+No filler conversations.
+Do not make every character smile or ask questions constantly.
+
+VISUALS:
+Describe only things a camera can show.
+Keep faces, clothing, locations, and props consistent.
+Do not repeat descriptions of eyes, faces, roads, lighting, or other details.
+Negative prompts must describe visual errors to avoid, not negate the main characters.
+
+${lang}
+`;
+
+    // PHASE 1: Establish story logic before writing scenes.
     const blueprint = await generate(
       env,
       system,
-      [
-        "Create a precise STORY BIBLE and scene outline for this drama.",
-        "USER IDEA: " + idea,
-        "GENRE: " + genre +
-          " | LANGUAGE: " + language +
-          " | VISUAL STYLE: " + style,
-        "TARGET LENGTH: " + minutes +
-          " minute(s) | EXACTLY " + totalScenes + " scenes.",
-        "",
-        "Return these sections:",
-        "1. TITLE: a memorable title.",
-        "2. CENTRAL STORY: 4–6 specific sentences: protagonist, goal, obstacle, stakes, and the actual secret or conflict.",
-        "3. CHARACTER BIBLE: 2–4 characters. Give name, age, appearance, personality, motivation, relationships, and what each character knows. Use consistent names; avoid vague labels like 'unknown man' when a real name can be created.",
-        "4. CONTINUITY LOCK: fixed wardrobe, location, time, important props, and relationships.",
-        "5. FULL PLOT: concrete beginning, escalating middle, reveal, and a satisfying ending. Explicitly state the actual truth or reveal; do not hide it from the production plan.",
-        "6. EXACT SCENE MAP: number every scene from 1 to " +
-          totalScenes +
-          ". Each scene gets one unique event, its consequence, and a clear purpose. Scene 1 hooks the viewer; the final scene resolves the central question or delivers a logical twist.",
-        "",
-        "Avoid empty phrases like 'a place of failure', 'the truth is the truth', or 'she discovers a secret' without explaining the actual secret.",
-        "Make the plot specific and understandable. Keep the blueprint compact but detailed enough to guide all scenes.",
-      ].join("\n"),
-      1500
+      `
+Create the complete story bible and scene outline.
+
+USER'S IDEA:
+${idea}
+
+GENRE: ${genre}
+LANGUAGE: ${language}
+VISUAL STYLE: ${style}
+LENGTH: ${minutes} minute(s)
+EXACT SCENE COUNT: ${count}
+
+Write these sections:
+
+1. TITLE
+One memorable title.
+
+2. CENTRAL STORY
+Explain the protagonist, goal, conflict, stakes, and specific central secret in 4–6 sentences.
+
+3. CHARACTER BIBLE
+Create 2–4 characters. For each, provide name, age, concise appearance, clothing, personality, motivation, relationships, and what the character knows.
+Describe each physical trait only once. Never repeat a trait to fill space.
+
+4. CONTINUITY LOCK
+Fix the clothing, locations, time, important props, and relationships.
+
+5. COMPLETE PLOT
+State the actual truth, reveal, and ending clearly. Do not use vague phrases like "she discovers a secret" without explaining the secret.
+
+6. SCENE MAP
+List exactly ${count} scenes. Give every scene a different event, purpose, and consequence. Scene 1 must hook the viewer. The final scene must resolve the central question or deliver a logical twist.
+
+Avoid repetition. Do not invent contradictory relationships or confuse whose mother, diary, or secret is involved.
+Keep the output concise enough to use as a guide for every scene.
+`,
+      1400
     );
 
-    // STAGE 2: Generate small scene batches to help continuity.
-    const batches: string[] = [];
-    const batchSize = 3;
+    const sceneBatches: string[] = [];
+    const batchSize = 2;
 
-    for (
-      let start = 1;
-      start <= totalScenes;
-      start += batchSize
-    ) {
-      const end = Math.min(
-        start + batchSize - 1,
-        totalScenes
-      );
+    // PHASE 2: Generate small batches to reduce repetition.
+    for (let start = 1; start <= count; start += batchSize) {
+      const end = Math.min(start + batchSize - 1, count);
 
-      const prompt = [
-        "Write production-ready scenes " +
-          start + " through " + end +
-          " ONLY, out of " + totalScenes + " scenes.",
-        "Use the story bible below as fixed canon. Do not change the reveal, character identities, relationships, timeline, or ending.",
-        "STORY BIBLE AND SCENE MAP:\n" + blueprint,
-        "",
-        "For EACH scene use this exact format:",
-        "SCENE [number] — [specific title]",
-        "DURATION: [seconds]",
-        "STORY ACTION: 2–4 concrete sentences showing visible action and how the situation changes.",
-        "DIALOGUE: 2–4 short lines in this format: NAME: spoken words. Every line must sound natural and move the scene forward. Do not repeat lines from previous scenes. Use silence instead if dialogue is unnecessary.",
-        "CAMERA: one clear shot or movement that suits the action.",
-        "LIGHTING AND SOUND: specific lighting plus useful ambient sound or effects.",
-        "VIDEO GENERATION PROMPT: a detailed standalone prompt in " +
-          style +
-          " style. Include the characters actually present, consistent appearance and clothes, location, visible action, emotion, camera movement, lighting, and atmosphere. Keep character appearances consistent with the story bible.",
-        "NEGATIVE PROMPT: unwanted text, subtitles, logos, watermarks, face changes, duplicate people, malformed hands, flicker, inconsistent clothes, and other relevant visual errors.",
-        "",
-        "Rules: output every scene number requested; no skipped scenes. Do not summarize. Do not repeat the same conversation. Do not use abstract descriptions that cannot be filmed. Do not add props or characters that contradict the story bible.",
-        lang,
-      ].join("\n");
+      const scenePrompt = `
+Write scenes ${start} through ${end} only.
+
+APPROVED STORY BIBLE:
+${blueprint}
+
+Use the story bible as fixed canon. Do not change the characters, central secret, relationships, or ending.
+
+Required duration for each scene:
+${Array.from({ length: end - start + 1 }, (_, i) =>
+  "Scene " + (start + i) + ": " + durations[start + i - 1] + " seconds"
+).join("\n")}
+
+For each scene, use exactly this structure:
+
+SCENE [number] — [specific title]
+DURATION: [use the exact duration above]
+
+STORY ACTION:
+Write 2–4 concrete sentences. Show what happens and how it changes the situation.
+
+DIALOGUE:
+Write 2–4 short, natural lines when appropriate.
+Format: CHARACTER NAME: spoken words.
+Each line must reveal something, show emotion, or move the plot forward.
+Do not repeat dialogue from any previous scene.
+
+CAMERA:
+Give one practical camera shot or movement.
+
+LIGHTING AND SOUND:
+Specify the lighting and relevant ambient sound or effects for this scene.
+
+VIDEO GENERATION PROMPT:
+Write a self-contained visual prompt in ${style} style.
+Include only the characters present, their consistent appearance and clothing, location, visible action, emotion, camera movement, lighting, and atmosphere.
+Avoid vague descriptions and repeated phrases.
+
+NEGATIVE PROMPT:
+Give a concise list of visual errors to avoid, such as distorted hands, face changes, duplicate characters, flickering, inconsistent clothing, unwanted text, logos, or watermarks.
+Do not say to remove the main characters or required objects.
+
+STRICT RULES:
+- Include every requested scene number.
+- Each scene must contain a distinct event.
+- Do not repeat a character description unnecessarily.
+- Do not replace important story events with unrelated small talk.
+- Do not add random details to fill space.
+- Do not repeat the story bible word-for-word.
+- Follow the requested language naturally.
+${lang}
+`;
 
       let batch = await generate(
         env,
         system,
-        prompt,
-        1700
+        scenePrompt,
+        1300
       );
 
-      // STAGE 3: Retry once if scene headings are missing
-      // or repeated lines are detected.
+      // Repair once when scene headings are missing or output repeats.
       if (
-        !hasSceneHeadings(batch, start, end) ||
-        hasRepeatedLines(batch)
+        !sceneHeadingsPresent(batch, start, end) ||
+        hasExcessiveRepetition(batch)
       ) {
         batch = await generate(
           env,
           system,
-          [
-            "REPAIR TASK: rewrite the scene batch below.",
-            "Ensure every requested scene heading is present exactly once, remove repeated lines, and use natural dialogue.",
-            "Do not change the approved plot, character identities, continuity, or reveal.",
-            "Required scene numbers: " + start + " through " + end + ".",
-            "STORY BIBLE:\n" + blueprint,
-            "DRAFT TO REPAIR:\n" + batch,
-            "Use these sections for every scene: STORY ACTION, DIALOGUE, CAMERA, LIGHTING AND SOUND, VIDEO GENERATION PROMPT, NEGATIVE PROMPT.",
-            lang,
-          ].join("\n"),
-          1700
+          `
+REWRITE AND REPAIR the draft below.
+Required scene numbers: ${start} through ${end}.
+Keep the approved story, character identities, continuity, and reveal unchanged.
+Remove repeated phrases, repetitive dialogue, awkward language, and irrelevant details.
+Use the exact scene structure and durations in the draft instructions.
+Return only the repaired scenes.
+
+APPROVED STORY BIBLE:
+${blueprint}
+
+DRAFT:
+${batch}
+
+${lang}
+`,
+          1300
         );
       }
 
-      if (!hasSceneHeadings(batch, start, end)) {
+      if (!sceneHeadingsPresent(batch, start, end)) {
         throw new Error(
-          "Hindi kumpleto ang output ng eksena " +
-            start + "–" + end +
-            ". Subukan muli gamit ang mas maikling haba ng video."
+          "Hindi kumpleto ang mga eksena " + start + "–" + end +
+          ". Subukan muli. Hindi ibinalik ang kulang na plano."
         );
       }
 
-      batches.push(batch.trim());
+      if (hasExcessiveRepetition(batch)) {
+        throw new Error(
+          "May sobrang pag-uulit sa mga eksena " + start + "–" + end +
+          ". Hindi ibinalik ang output na may nakitang depekto."
+        );
+      }
+
+      sceneBatches.push(batch.trim());
     }
 
     const plan = [
@@ -296,14 +367,12 @@ async function handleChat(
       blueprint,
       "",
       "SCENE-BY-SCENE PRODUCTION PLAN",
-      batches.join(
-        "\n\n==================================================\n\n"
-      ),
+      sceneBatches.join("\n\n========================================\n\n"),
       "",
-      "FINAL QUALITY CHECK",
-      "- Verify character names, relationships, wardrobe, props, locations, and timeline against the story bible.",
-      "- Do not reuse dialogue or change the established reveal.",
-      "- Keep each scene prompt self-contained for video generation.",
+      "FINAL PRODUCTION CHECK",
+      "Scene count: " + count,
+      "Total planned duration: " + (minutes * 60) + " seconds",
+      "Use the character bible as the visual reference for all generated clips.",
     ].join("\n");
 
     return json({
@@ -313,29 +382,22 @@ async function handleChat(
       durationMinutes: minutes,
       language,
       genre,
-      sceneCount: totalScenes,
+      sceneCount: count,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Hindi inaasahang error sa pagbuo ng drama.";
+    const message = error instanceof Error
+      ? error.message
+      : "Hindi inaasahang error sa pagbuo ng drama.";
 
-    return json(
-      {
-        success: false,
-        error: "Hindi nabuo ang drama plan. " + message,
-      },
-      500
-    );
+    return json({
+      success: false,
+      error: "Hindi nabuo ang drama plan. " + message,
+    }, 500);
   }
 }
 
 export default {
-  async fetch(
-    request: Request,
-    env: Env
-  ): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
@@ -349,10 +411,7 @@ export default {
       });
     }
 
-    if (
-      url.pathname === "/api/health" &&
-      request.method === "GET"
-    ) {
+    if (url.pathname === "/api/health" && request.method === "GET") {
       return json({
         ok: true,
         service: "AI Drama Studio",
@@ -360,20 +419,10 @@ export default {
       });
     }
 
-    if (
-      url.pathname === "/api/chat" &&
-      request.method === "POST"
-    ) {
+    if (url.pathname === "/api/chat" && request.method === "POST") {
       return handleChat(request, env);
     }
 
-    if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
-    }
-
-    return json(
-      { success: false, error: "Hindi nahanap ang page." },
-      404
-    );
+    return env.ASSETS.fetch(request);
   },
 };
