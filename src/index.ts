@@ -134,13 +134,24 @@ function hasExcessiveRepetition(text: string): boolean {
   return false;
 }
 
-function hasSceneHeadings(text: string, expected: number): boolean {
-  const matches = text.match(
-    /^\s*(?:SCENE|EKSENA)\s+\d+\b/gim
-  );
 
-  return (matches?.length || 0) === expected;
+function hasSceneHeadings(text: string, expected: number): boolean {
+  const matches = [
+    ...text.matchAll(
+      /^\s*(?:#{1,6}\s*)?(?:SCENE|EKSENA)\s*#?\s*(\d+)\b/gim
+    ),
+  ];
+
+  const numbers = matches.map((match) => Number(match[1]));
+  const unique = new Set(numbers);
+
+  return (
+    unique.size === expected &&
+    Array.from({ length: expected }, (_, i) => i + 1)
+      .every((number) => unique.has(number))
+  );
 }
+
 
 function getSceneCount(minutes: number): number {
   if (minutes === 1) return 4;
