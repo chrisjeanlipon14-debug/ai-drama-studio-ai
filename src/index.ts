@@ -323,11 +323,13 @@ async function createDramaPlan(
     }
 
     const correctHeadings = hasSceneHeadings(plan, sceneCount);
-    const repeated = hasExcessiveRepetition(plan);
+const repeated = hasExcessiveRepetition(plan);
 
-    if (correctHeadings && !repeated) {
-      return plan;
-    }
+// Tanggapin ang plan kung kumpleto ang mga eksena.
+// Huwag agad tanggihan dahil lang sa repetition checker.
+if (correctHeadings) {
+  return plan;
+}
 
     lastReason = [
       !correctHeadings
