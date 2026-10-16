@@ -11,180 +11,158 @@ interface Env {
   };
 }
 
-const MODEL_ID = "@cf/meta/llama-3.1-8b-instruct-fast";
-const VIDEO_MODEL_ID = "pruna/p-video";
-
-const SYSTEM_PROMPT = `
-You are AI Drama Studio, an original drama production engine.
-
-Create original stories. Never copy existing movies, dramas, books, or creators.
-
-Write clear, natural language in the user's selected language.
-For Tagalog, use natural Filipino grammar and avoid invented or meaningless words.
-Do not repeat paragraphs to fill space.
-Do not end in the middle of a sentence.
-If the requested output is too large, prioritize completeness and concise details.
-
-Maintain consistent characters, appearance, clothing, locations, props,
-timeline, dialogue, emotional progression, and visual style.
-
-Never claim a quality check passed unless you actually checked it.
-Never claim a video was generated unless the video model returned a result.
-`;
+const MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Cache-Control": "no-store",
-    },
+      "Cache-Control": "no-store"
+    }
   });
 }
 
-async function readJson(request: Request): Promise<Record<string, unknown>> {
-  const value: unknown = await request.json();
-
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error("Invalid JSON request body.");
-  }
-
-  return value as Record<string, unknown>;
-}
-
-function errorMessage(error: unknown): string {
+function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function handleChat(request: Request, env: Env): Promise<Response> {
-  const body = await readJson(request);
+function extractText(value: any): string {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return "";
 
-  const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+  const candidates = [
+    value.response,
+    value.result?.response,
+    value.output,
+    value.content,
+    value.message?.content,
+    value.choices?.[0]?.message?.content
+  ];
 
-  if (rawMessages.length === 0) {
-    return json({ error: "Please provide a message." }, 400);
+  for (const item of candidates) {
+    if (typeof item === "string" && item.trim()) {
+      return item.trim();
+    }
+
+    if (Array.isArray(item)) {
+      const text = item
+        .map((part: any) => part?.text || "")
+        .join("\n")
+        .trim();
+
+      if (text) return text;
+    }
   }
 
-  const messages = rawMessages
-    .filter(
-      (item): item is { role: string; content: string } =>
-        !!item &&
-        typeof item === "object" &&
-        typeof (item as { content?: unknown }).content === "string"
-    )
-    .map((item) => ({
-      role: item.role === "assistant" ? "assistant" : "user",
-      content: item.content.trim(),
-    }))
-    .filter((item) => item.content.length > 0)
-    .slice(-12);
-
-  if (messages.length === 0) {
-    return json({ error: "The message content is empty." }, 400);
-  }
-
-  const result = await env.AI.run(MODEL_ID, {
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...messages,
-    ],
-    max_tokens: 1800,
-    temperature: 0.6,
-  });
-
-  return json(result);
+  return "";
 }
 
-async function handleVideo(request: Request, env: Env): Promise<Response> {
-  const body = await readJson(request);
+async function handleChat(request: Request, env: Env) {
+  const body = await request.json() as Record<string, unknown>;
 
-  const prompt = typeof body.prompt === "string"
-    ? body.prompt.trim()
+  const idea = typeof body.idea === "string"
+    ? body.idea.trim()
     : "";
 
-  if (!prompt) {
+  if (idea.length < 8) {
     return json({
-      success: false,
-      error: "A video prompt is required.",
+      error: "Maglagay muna ng mas malinaw na drama idea."
     }, 400);
   }
 
-  const requestedDuration = Number(body.duration ?? 5);
+  const language = String(body.language || "Tagalog");
+  const genre = String(body.genre || "Horror");
+  const style = String(body.visualStyle || "Cinematic realistic");
+  const minutes = Math.min(
+    10,
+    Math.max(1, Number(body.durationMinutes) || 5)
+  );
 
-  if (!Number.isFinite(requestedDuration)) {
+  const prompt = `
+You are AI Drama Studio, an original drama screenwriter.
+
+Create a complete first-draft production plan.
+Write naturally in ${language}.
+
+USER IDEA:
+${idea}
+
+GENRE: ${genre}
+VISUAL STYLE: ${style}
+TARGET LENGTH: ${minutes} minutes.
+
+Include these sections:
+
+1. TITLE
+2. OPENING HOOK
+3. STORY SUMMARY
+4. CHARACTER BIBLE
+   - Name and role
+   - Approximate age
+   - Face, hair, body and clothing
+   - Personality, goal and fear
+5. LOCATION AND VISUAL CONTINUITY
+6. SCENE-BY-SCENE BREAKDOWN
+7. NATURAL DIALOGUE
+8. CAMERA DIRECTIONS
+9. LIGHTING AND SOUND
+10. AI VIDEO PROMPT FOR EACH SCENE
+11. NEGATIVE PROMPT
+12. ENDING OR CLIFFHANGER
+
+Rules:
+- Keep character appearances and clothing consistent.
+- Each scene must have a distinct story purpose.
+- Avoid repetitive dialogue and meaningless filler.
+- Respect the user's original idea.
+- For horror, build tension and provide a clear scare or reveal.
+- For comedy, make the setup and punchline clear.
+- Use correct, natural Filipino when Tagalog is selected.
+- Do not claim that a video has been generated.
+- This request produces a written plan only.
+`;
+
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      {
+        role: "system",
+        content: "Create original, coherent drama production plans."
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ],
+    max_tokens: 3500,
+    temperature: 0.65
+  });
+
+  const plan = extractText(result);
+
+  if (!plan) {
     return json({
-      success: false,
-      error: "Video duration must be a number from 1 to 20 seconds.",
-    }, 400);
+      error: "Walang mabasang text mula sa AI response. Suriin ang Workers AI response format."
+    }, 502);
   }
 
-  const duration = Math.min(20, Math.max(1, Math.round(requestedDuration)));
-  const resolution = body.resolution === "1080p" ? "1080p" : "720p";
-
-  const allowedRatios = ["16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "1:1"];
-  const aspectRatio =
-    typeof body.aspect_ratio === "string" &&
-    allowedRatios.includes(body.aspect_ratio)
-      ? body.aspect_ratio
-      : "16:9";
-
-  const draft = typeof body.draft === "boolean" ? body.draft : true;
-
-  try {
-    const result = await env.AI.run(VIDEO_MODEL_ID, {
-      prompt,
-      duration,
-      resolution,
-      aspect_ratio: aspectRatio,
-      draft,
-      save_audio: true,
-      prompt_upsampling: true,
-    });
-
-    return json({
-      success: true,
-      model: VIDEO_MODEL_ID,
-      duration,
-      resolution,
-      draft,
-      result,
-    });
-  } catch (error) {
-    return json({
-      success: false,
-      model: VIDEO_MODEL_ID,
-      error: errorMessage(error),
-      note: "The video request failed. Check the model availability and Workers AI response before retrying.",
-    }, 500);
-  }
+  return json({
+    success: true,
+    plan,
+    model: MODEL,
+    durationMinutes: minutes
+  });
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Headers": "Content-Type",
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        },
-      });
-    }
-
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/api/health") {
       return json({
         ok: true,
         service: "AI Drama Studio",
-        chatModel: MODEL_ID,
-        videoModel: VIDEO_MODEL_ID,
-        videoGenerationAvailable: true,
-        note: "Endpoint configured; actual video generation still needs a real test.",
+        model: MODEL
       });
     }
 
@@ -193,30 +171,21 @@ export default {
         return await handleChat(request, env);
       } catch (error) {
         return json({
-          error: errorMessage(error),
+          error: errorText(error)
         }, 500);
       }
     }
 
-    if (request.method === "POST" && url.pathname === "/api/video") {
-      try {
-        return await handleVideo(request, env);
-      } catch (error) {
-        return json({
-          success: false,
-          error: errorMessage(error),
-        }, 500);
-      }
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204 });
     }
 
     if (env.ASSETS) {
       return env.ASSETS.fetch(request);
     }
 
-    return new Response("AI Drama Studio is running.", {
-      status: 200,
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    return new Response("Missing static asset configuration.", {
+      status: 500
     });
-  },
+  }
 };
-        
