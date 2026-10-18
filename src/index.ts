@@ -40,13 +40,8 @@ function getText(result: unknown): string {
     if (typeof value.output === "string") return value.output;
 
     if (Array.isArray(value.choices)) {
-      const choice = value.choices[0] as
-        | Record<string, unknown>
-        | undefined;
-      const message = choice?.message as
-        | Record<string, unknown>
-        | undefined;
-
+      const choice = value.choices[0] as Record<string, unknown>;
+      const message = choice?.message as Record<string, unknown>;
       if (typeof message?.content === "string") {
         return message.content;
       }
@@ -59,108 +54,39 @@ function getText(result: unknown): string {
 async function generate(
   env: Env,
   prompt: string,
-  maxTokens: number
+  maxTokens = 2048
 ): Promise<string> {
   const result = await env.AI.run(MODEL, {
     messages: [
       {
         role: "system",
         content:
-          
-          "You are an international professional screenwriter and short-film story architect. " +
-          "Create original, coherent, cinematic stories for audiences around the world. " +
-          "Follow the exact language requested by the user, including Tagalog, English, Chinese, Korean, Japanese, Spanish, and other languages supported by the model. " +
-          "Write natural, grammatically correct dialogue in the requested language. Never produce gibberish or awkward literal translations. " +
-          "Respect the requested country, culture, setting, character backgrounds, and audience. " +
-          "Do not assume every story takes place in the Philippines or the United States. " +
-          "Maintain consistent character names, ages, appearance, clothing, relationships, and motivations. " +
-          "Every scene must advance the story and connect logically to the previous scene. " +
-          "Give each character believable dialogue that fits their personality and situation. " +
-          "Build a compelling beginning, rising conflict, climax, and memorable ending. " +
-          "Never repeat dialogue, paragraphs, or scenes to fill space. " +
-          "Create original stories; do not copy existing films, scripts, or copyrighted characters. " +
-          "Follow the user's requested genre, language, format, runtime, and production requirements.",
-
+          "You are a professional international screenwriter and film production planner. " +
+          "Write original, coherent stories in the exact language requested. " +
+          "Use natural, grammatically correct dialogue. Never produce gibberish. " +
+          "Keep character names, ages, appearance, clothing, relationships, " +
+          "motivations, locations, and important objects consistent. " +
+          "Follow the requested genre and culture. Every scene must connect " +
+          "logically to the story. Do not repeat dialogue or use filler. " +
+          "Create filmable visual actions, practical camera directions, " +
+          "appropriate sound design, and specific story-driven scene hooks. " +
+          "Do not copy existing films, scripts, or copyrighted characters.",
       },
       { role: "user", content: prompt },
     ],
     max_tokens: maxTokens,
-    temperature: 0.45,
-    top_p: 0.85,
+    temperature: 0.35,
+    top_p: 0.8,
     repetition_penalty: 1.15,
-    frequency_penalty: 0.6,
-    presence_penalty: 0.15,
   });
 
   return getText(result).trim();
 }
 
-function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+function cleanInput(value: unknown, fallback: string): string {
+  if (typeof value !== "string") return fallback;
+  return value.trim().slice(0, 3000) || fallback;
 }
-
-function hasExcessiveRepetition(text: string): boolean {
-  const paragraphs = text
-    .split(/\n\s*\n/)
-    .map(normalize)
-    .filter((p) => p.length > 50);
-
-  const seen = new Set<string>();
-
-  for (const paragraph of paragraphs) {
-    if (seen.has(paragraph)) return true;
-    seen.add(paragraph);
-  }
-
-  const lines = text
-    .split("\n")
-    .map(normalize)
-    .filter((line) => line.length > 65);
-
-  const lineCounts = new Map<string, number>();
-
-  for (const line of lines) {
-    const count = (lineCounts.get(line) || 0) + 1;
-    lineCounts.set(line, count);
-    if (count >= 3) return true;
-  }
-
-  const words = normalize(text).split(" ");
-  const phraseCounts = new Map<string, number>();
-
-  for (let i = 0; i <= words.length - 7; i++) {
-    const phrase = words.slice(i, i + 7).join(" ");
-    const count = (phraseCounts.get(phrase) || 0) + 1;
-    phraseCounts.set(phrase, count);
-
-    if (count >= 4) return true;
-  }
-
-  return false;
-}
-
-
-function hasSceneHeadings(text: string, expected: number): boolean {
-  const matches = [
-    ...text.matchAll(
-      /^\s*(?:#{1,6}\s*)?(?:SCENE|EKSENA)\s*#?\s*(\d+)\b/gim
-    ),
-  ];
-
-  const numbers = matches.map((match) => Number(match[1]));
-  const unique = new Set(numbers);
-
-  return (
-    unique.size === expected &&
-    Array.from({ length: expected }, (_, i) => i + 1)
-      .every((number) => unique.has(number))
-  );
-}
-
 
 function getSceneCount(minutes: number): number {
   if (minutes === 1) return 4;
@@ -169,123 +95,36 @@ function getSceneCount(minutes: number): number {
   return 20;
 }
 
-function cleanInput(value: unknown, fallback: string): string {
-  if (typeof value !== "string") return fallback;
-  return value.trim().slice(0, 5000) || fallback;
+function hasSceneHeadings(text: string, expected: number): boolean {
+  const matches = [
+    ...text.matchAll(
+      /^\s*(?:#{1,6}\s*)?(?:SCENE|EKSENA)\s*#?\s*(\d+)\b/gim
+    ),
+  ];
+
+  const numbers = new Set(matches.map((match) => Number(match[1])));
+
+  return (
+    numbers.size === expected &&
+    Array.from({ length: expected }, (_, i) => i + 1)
+      .every((number) => numbers.has(number))
+  );
 }
 
-function buildPrompt(
-  idea: string,
-  language: string,
-  genre: string,
-  visualStyle: string,
-  minutes: number,
-  sceneCount: number,
-  retry: boolean
-): string {
-  const seconds = minutes * 60;
-  const baseSeconds = Math.floor(seconds / sceneCount);
-  const remainder = seconds % sceneCount;
+function hasExcessiveRepetition(text: string): boolean {
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((p) => p.toLowerCase().replace(/\s+/g, " ").trim())
+    .filter((p) => p.length > 80);
 
-  const timings = Array.from(
-    { length: sceneCount },
-    (_, i) => baseSeconds + (i < remainder ? 1 : 0)
-  );
+  const seen = new Set<string>();
 
-  return `
-GUMAWA NG KUMPLETONG SHORT-FILM DRAMA PLAN.
+  for (const paragraph of paragraphs) {
+    if (seen.has(paragraph)) return true;
+    seen.add(paragraph);
+  }
 
-IDEYA NG USER:
-${idea}
-
-WIKA: ${language}
-GENRE: ${genre}
-VISUAL STYLE: ${visualStyle}
-KABUUANG HABA: ${minutes} minuto (${seconds} segundo)
-BILANG NG EKSENA: eksaktong ${sceneCount}
-
-${retry ? `
-PAGWAWASTO:
-Nabigo ang naunang draft dahil sa pag-uulit o maling format.
-Gumawa ng BAGONG draft. Huwag kopyahin ang naunang output.
-` : ""}
-
-
-STRICT STORY RULES:
-1. Follow the user's original story idea and requested genre.
-2. Write the entire plan in the requested language: ${language}.
-3. Respect the requested country, culture, time period, and setting.
-4. Keep all character names, ages, appearances, clothing,
-   relationships, and motivations consistent.
-5. Give every scene a clear purpose and logical connection
-   to the previous scene.
-6. Use natural dialogue appropriate to each character and situation.
-7. Build a clear beginning, rising conflict, climax, and ending.
-8. Avoid repetitive dialogue, meaningless descriptions,
-   random events, and contradictory story details.
-9. Match every scene's duration to its assigned time.
-10. Create exactly ${sceneCount} scenes and no extra scenes.
-11. Total runtime must equal exactly ${seconds} seconds.
-12. Adapt the storytelling to the selected genre, whether
-    romance, action, horror, fantasy, animation, comedy,
-    thriller, mystery, or another requested genre.
-13. Create original characters and stories; do not copy existing
-    films, scripts, or copyrighted characters.
-14. Use cinematic visual descriptions suitable for film or animation.
-15. Make the ending meaningful, surprising, emotional, or suspenseful,
-    according to the requested genre.
-
-
-FORMAT:
-
-DRAMA TITLE:
-Maikli, kapansin-pansin at orihinal.
-
-LOGLINE:
-Isang pangungusap tungkol sa pangunahing tunggalian.
-
-CHARACTERS:
-Para sa bawat karakter, ilagay ang pangalan, edad,
-pisikal na itsura, pananamit, personalidad at motibasyon.
-
-STORY SUMMARY:
-Maikli ngunit kumpleto: simula, tunggalian, paglala at ending.
-
-SCENE PLAN:
-
-Para sa bawat eksena, gamitin ang format na ito:
-
-SCENE 1 — [maikling pamagat]
-DURATION: ${timings[0]} seconds
-LOCATION:
-CHARACTERS PRESENT:
-VISUAL ACTION:
-DIALOGUE:
-CAMERA:
-SOUND:
-ENDING HOOK:
-
-Ulitin ang parehong format para sa eksaktong ${sceneCount}
-na eksena. Gamitin ang mga sumusunod na tagal ayon sa pagkakasunod:
-${timings.map((t, i) => `Eksena ${i + 1}: ${t} segundo`).join("\n")}
-
-Mahalagang panuntunan sa dialogue:
-- Magkakaiba ang boses at paraan ng pagsasalita ng mga karakter.
-- Huwag ipasabi sa lahat ang parehong linya.
-- Ang dialogue ay dapat makatulong sa kuwento.
-- Kung walang kailangang sabihin, gumamit ng katahimikan o aksiyon.
-
-ENDING:
-Ilarawan ang malinaw na huling pangyayari at ang emosyonal
-o nakagugulat na epekto nito.
-
-CONTINUITY CHECK:
-Ilista nang maikli ang mahahalagang detalye na hindi dapat magbago.
-
-FINAL CHECK:
-Bago isumite, tiyaking eksakto ang bilang ng eksena,
-walang inuulit na eksena, at natural ang wika.
-`.trim();
+  return false;
 }
 
 async function createDramaPlan(
@@ -293,6 +132,7 @@ async function createDramaPlan(
   body: Record<string, unknown>
 ): Promise<string> {
   const idea = cleanInput(body.idea, "");
+
   if (!idea) {
     throw new Error("Ilagay muna ang ideya ng iyong kuwento.");
   }
@@ -307,58 +147,162 @@ async function createDramaPlan(
   let minutes = Number(body.durationMinutes);
 
   if (![1, 3, 5, 10].includes(minutes)) {
-    const seconds = Number(body.durationSeconds);
-    minutes = seconds === 180 ? 3
-      : seconds === 300 ? 5
-      : seconds === 600 ? 10
-      : 1;
+    minutes = 1;
   }
 
+  const totalSeconds = minutes * 60;
   const sceneCount = getSceneCount(minutes);
-  let lastReason = "Hindi pumasa sa quality checks.";
+  const baseDuration = Math.floor(totalSeconds / sceneCount);
+  const extraSeconds = totalSeconds % sceneCount;
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const prompt = buildPrompt(
-      idea,
-      language,
-      genre,
-      visualStyle,
-      minutes,
-      sceneCount,
-      attempt > 0
-    );
+  const durations = Array.from(
+    { length: sceneCount },
+    (_, i) => baseDuration + (i < extraSeconds ? 1 : 0)
+  );
 
-    const plan = await generate(
+  // STEP 1: Create one shared story blueprint.
+  const blueprint = await generate(
+    env,
+    `
+Create a complete ORIGINAL short-film STORY BLUEPRINT.
+
+USER IDEA:
+${idea}
+
+LANGUAGE: ${language}
+GENRE: ${genre}
+VISUAL STYLE: ${visualStyle}
+TOTAL RUNTIME: ${totalSeconds} seconds
+EXACT SCENE COUNT: ${sceneCount}
+
+Write all story content in ${language}.
+
+Include:
+1. Original title and one-sentence logline.
+2. Character bible: name, age, appearance, clothing, personality,
+   motivation, relationships, and speaking style.
+3. Setting, time period, and important objects.
+4. Complete beginning, escalating conflict, climax, and ending.
+5. A numbered outline for exactly ${sceneCount} scenes.
+6. The specific event that connects each scene to the next.
+7. The final reveal or resolution.
+
+Make every plot event logical. Keep character and location details fixed.
+Do not write the full scene dialogue yet.
+Return a concise but complete blueprint.
+`,
+    2500
+  );
+
+  if (!blueprint) {
+    throw new Error("Hindi nakagawa ng story blueprint. Subukan ulit.");
+  }
+
+  // STEP 2: Generate each scene using the same blueprint.
+  const scenes: string[] = [];
+
+  for (let i = 0; i < sceneCount; i++) {
+    const duration = durations[i];
+    const previousScene = scenes.length
+      ? scenes[scenes.length - 1]
+      : "Wala pa. Ito ang unang eksena.";
+
+    const scene = await generate(
       env,
-      prompt,
-      minutes === 10 ? 8192 : 4096
+      `
+Write ONLY SCENE ${i + 1} of an original short film.
+
+FIXED STORY BLUEPRINT:
+${blueprint}
+
+USER'S ORIGINAL IDEA:
+${idea}
+
+LANGUAGE: ${language}
+GENRE: ${genre}
+VISUAL STYLE: ${visualStyle}
+
+SCENE NUMBER: ${i + 1} of ${sceneCount}
+EXACT DURATION: ${duration} seconds
+
+PREVIOUS SCENE FOR CONTINUITY:
+${previousScene.slice(-1800)}
+
+Write all story content in ${language}.
+Use the blueprint as the source of truth. Do not change character
+names, appearance, relationships, motivations, setting, or story facts.
+Continue naturally from the previous scene.
+
+Required format:
+
+SCENE ${i + 1} — [short title]
+DURATION: ${duration} seconds
+LOCATION:
+CHARACTERS PRESENT:
+VISUAL ACTION: Specific chronological actions that can be filmed.
+DIALOGUE: Natural, concise dialogue with speaker names.
+CAMERA: Practical shot types and camera movement.
+SOUND: Relevant ambience, effects, and music.
+ENDING HOOK: A specific reveal, decision, threat, or visual event
+that advances this story. For the final scene, give the real ending.
+
+Rules:
+- Every field must contain useful information.
+- Do not add characters or events that contradict the blueprint.
+- Do not repeat the previous scene.
+- Dialogue must fit the duration.
+- Avoid vague, nonsensical, or unrelated lines.
+- Return only this one scene, not the entire plan.
+`,
+      1200
     );
 
-    if (!plan) {
-      lastReason = "Walang text na ibinalik ang AI.";
-      continue;
+    if (!scene) {
+      throw new Error(
+        `Hindi nabuo ang Scene ${i + 1}. Subukan ulit ang drama plan.`
+      );
     }
 
-    const correctHeadings = hasSceneHeadings(plan, sceneCount);
-const repeated = hasExcessiveRepetition(plan);
-
-// Tanggapin ang plan kung kumpleto ang mga eksena.
-// Huwag agad tanggihan dahil lang sa repetition checker.
-if (correctHeadings) {
-  return plan;
-}
-
-    lastReason = [
-      !correctHeadings
-        ? `Hindi eksaktong ${sceneCount} ang mga heading ng eksena.`
-        : "",
-      repeated ? "May sobrang pag-uulit." : "",
-    ].filter(Boolean).join(" ");
+    scenes.push(scene);
   }
 
-  throw new Error(
-    `Hindi pa makabuo ng maayos na drama plan matapos ang 3 pagsubok. ${lastReason} Subukan ulit o paikliin ang ideya.`
-  );
+  // STEP 3: Assemble the plan and check the scene count.
+  const plan = [
+    "DRAMA TITLE AND STORY PLAN",
+    "",
+    "STORY BLUEPRINT:",
+    blueprint,
+    "",
+    "SCENE PLAN:",
+    "",
+    ...scenes.flatMap((scene, i) => [
+      scene,
+      ...(i < scenes.length - 1 ? [""] : []),
+    ]),
+    "",
+    "CONTINUITY NOTE:",
+    "All scenes follow the shared story blueprint above.",
+  ].join("\n");
+
+  if (!hasSceneHeadings(
+    scenes.map((scene) => {
+      const match = scene.match(/^\s*(?:#{1,6}\s*)?(?:SCENE|EKSENA)\s*#?\s*(\d+)\b/im);
+      return match ? `SCENE ${match[1]}` : scene;
+    }).join("\n"),
+    sceneCount
+  )) {
+    throw new Error(
+      "Hindi pumasa sa scene numbering check. Subukan ulit."
+    );
+  }
+
+  if (hasExcessiveRepetition(scenes.join("\n\n"))) {
+    throw new Error(
+      "May magkaparehong mahahabang talata sa scenes. Subukan ulit."
+    );
+  }
+
+  return plan;
 }
 
 export default {
@@ -385,15 +329,11 @@ export default {
         const body = await request.json() as Record<string, unknown>;
         const plan = await createDramaPlan(env, body);
 
-        return json({
-          success: true,
-          plan,
-        });
+        return json({ success: true, plan });
       } catch (error) {
-        const message =
-          error instanceof Error
-            ? error.message
-            : "May hindi inaasahang problema sa paggawa ng drama plan.";
+        const message = error instanceof Error
+          ? error.message
+          : "May hindi inaasahang problema sa paggawa ng drama plan.";
 
         return json({
           success: false,
