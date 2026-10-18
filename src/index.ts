@@ -210,23 +210,31 @@ Nabigo ang naunang draft dahil sa pag-uulit o maling format.
 Gumawa ng BAGONG draft. Huwag kopyahin ang naunang output.
 ` : ""}
 
-MAHIGPIT NA PANUNTUNAN:
-1. Sundin ang ideya ng user. Huwag palitan ang pangunahing kuwento.
-2. Gumamit ng natural at malinaw na ${language}.
-3. Ang bawat eksena ay dapat may bagong pangyayari, aksiyon,
-   impormasyon, o pagbabago sa sitwasyon.
-4. Huwag ulitin ang parehong dialogue, pangungusap, o paglalarawan.
-5. Panatilihing pare-pareho ang pangalan, edad, itsura, damit,
-   relasyon at motibasyon ng mga karakter.
-6. Ang horror ay dapat may malinaw na suspense, nakikitang detalye,
-   at lohikal na dahilan sa mga pangyayari. Iwasan ang random na
-   detalye at hindi magkakaugnay na eksena.
-7. Walang mahabang paliwanag na walang aksiyon.
-8. Walang eksenang lampas sa nakatalagang oras.
-9. Huwag magdagdag ng eksena sa labas ng ${sceneCount}.
-10. Huwag magdagdag ng pambungad o paliwanag bago ang output.
-11. Ang kabuuan ng tagal ng lahat ng eksena ay eksaktong
-    ${seconds} segundo.
+
+STRICT STORY RULES:
+1. Follow the user's original story idea and requested genre.
+2. Write the entire plan in the requested language: ${language}.
+3. Respect the requested country, culture, time period, and setting.
+4. Keep all character names, ages, appearances, clothing,
+   relationships, and motivations consistent.
+5. Give every scene a clear purpose and logical connection
+   to the previous scene.
+6. Use natural dialogue appropriate to each character and situation.
+7. Build a clear beginning, rising conflict, climax, and ending.
+8. Avoid repetitive dialogue, meaningless descriptions,
+   random events, and contradictory story details.
+9. Match every scene's duration to its assigned time.
+10. Create exactly ${sceneCount} scenes and no extra scenes.
+11. Total runtime must equal exactly ${seconds} seconds.
+12. Adapt the storytelling to the selected genre, whether
+    romance, action, horror, fantasy, animation, comedy,
+    thriller, mystery, or another requested genre.
+13. Create original characters and stories; do not copy existing
+    films, scripts, or copyrighted characters.
+14. Use cinematic visual descriptions suitable for film or animation.
+15. Make the ending meaningful, surprising, emotional, or suspenseful,
+    according to the requested genre.
+
 
 FORMAT:
 
