@@ -61,7 +61,7 @@
     try {
       setStatus("Nagpapadala ng ideya sa AI server…");
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000);
+      const timeoutId = setTimeout(() => controller.abort(), 240000);
       let response;
       try {
         response = await fetch("/api/chat", {
