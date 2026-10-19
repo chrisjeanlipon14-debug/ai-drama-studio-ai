@@ -6,6 +6,7 @@ interface Env {
       input: Record<string, unknown>
     ) => Promise<unknown>;
   };
+  MAGIC_HOUR_API_KEY: string;
   ASSETS: {
     fetch: (request: Request) => Promise<Response>;
   };
