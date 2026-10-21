@@ -69,16 +69,10 @@ async function generate(
       {
         role: "system",
         content:
-          "You are a professional international screenwriter and film production planner. " +
-          "Write original, coherent stories in the exact language requested. " +
-          "Use natural, grammatically correct dialogue. Never produce gibberish. " +
-          "Keep character names, ages, appearance, clothing, relationships, " +
-          "motivations, locations, and important objects consistent. " +
-          "Follow the requested genre and culture. Every scene must connect " +
-          "logically to the story. Do not repeat dialogue or use filler. " +
-          "Create filmable visual actions, practical camera directions, " +
-          "appropriate sound design, and specific story-driven scene hooks. " +
-          "Do not copy existing films, scripts, or copyrighted characters.",
+          "You are a professional screenwriter. Create original, coherent " +
+          "stories in the requested language. Use natural grammar and dialogue. " +
+          "Keep characters, relationships, locations, and story facts consistent. " +
+          "Do not copy existing films or scripts. Return only the requested content.",
       },
       { role: "user", content: prompt },
     ],
@@ -91,9 +85,25 @@ async function generate(
   return getText(result).trim();
 }
 
-function cleanInput(value: unknown, fallback: string): string {
+function cleanInput(value: unknown, fallback = ""): string {
   if (typeof value !== "string") return fallback;
   return value.trim().slice(0, 3000) || fallback;
+}
+
+function getSettings(body: Record<string, unknown>) {
+  const idea = cleanInput(body.idea);
+  const language = cleanInput(body.language, "Tagalog");
+  const genre = cleanInput(body.genre, "Drama");
+  const visualStyle = cleanInput(body.visualStyle, "Cinematic realistic");
+
+  let minutes = Number(body.durationMinutes);
+  if (![1, 3, 5, 10].includes(minutes)) minutes = 1;
+
+  if (!idea || idea.length < 8) {
+    throw new Error("Maglagay muna ng mas malinaw na ideya ng kuwento.");
+  }
+
+  return { idea, language, genre, visualStyle, minutes };
 }
 
 function getSceneCount(minutes: number): number {
@@ -103,177 +113,151 @@ function getSceneCount(minutes: number): number {
   return 20;
 }
 
-function hasSceneHeadings(text: string, expected: number): boolean {
-  const matches = [
-    ...text.matchAll(
-     /^[ \t]*(?:#{1,6}[ \t]*)?(?:SCENE|EKSENA)[ \t]*#?[ \t]*(\d+)\b/gim
-    ),
-  ];
-
-  const numbers = new Set(matches.map((match) => Number(match[1])));
-
-  return (
-    numbers.size === expected &&
-    Array.from({ length: expected }, (_, i) => i + 1).every(
-      (number) => numbers.has(number)
-    )
-  );
-}
-
-function hasExcessiveRepetition(text: string): boolean {
-  const paragraphs = text
-    .split(/\n\s*\n/)
-    .map((p) => p.toLowerCase().replace(/\s+/g, " ").trim())
-    .filter((p) => p.length > 80);
-
-  const seen = new Set<string>();
-
-  for (const paragraph of paragraphs) {
-    if (seen.has(paragraph)) return true;
-    seen.add(paragraph);
-  }
-
-  return false;
-}
-
-async function createDramaPlan(
+async function createBlueprint(
   env: Env,
-  body: Record<string, unknown>
+  settings: ReturnType<typeof getSettings>
 ): Promise<string> {
-  const idea = cleanInput(body.idea, "");
-
-  if (!idea) {
-    throw new Error("Ilagay muna ang ideya ng iyong kuwento.");
-  }
-
-  const language = cleanInput(body.language, "Tagalog");
-  const genre = cleanInput(body.genre, "Drama");
-  const visualStyle = cleanInput(
-    body.visualStyle,
-    "Cinematic realistic"
-  );
-
-  let minutes = Number(body.durationMinutes);
-
-  if (![1, 3, 5, 10].includes(minutes)) {
-    minutes = 1;
-  }
-
-  const totalSeconds = minutes * 60;
+  const { idea, language, genre, visualStyle, minutes } = settings;
   const sceneCount = getSceneCount(minutes);
-  const baseDuration = Math.floor(totalSeconds / sceneCount);
-  const extraSeconds = totalSeconds % sceneCount;
-
-  const durations = Array.from(
-    { length: sceneCount },
-    (_, i) => baseDuration + (i < extraSeconds ? 1 : 0)
-  );
 
   const blueprint = await generate(
     env,
-    `
-Create a complete ORIGINAL short-film STORY BLUEPRINT.
+    `Create an original short-film story blueprint.
 
-USER IDEA:
-${idea}
-
+USER IDEA: ${idea}
 LANGUAGE: ${language}
 GENRE: ${genre}
 VISUAL STYLE: ${visualStyle}
-TOTAL RUNTIME: ${totalSeconds} seconds
-EXACT SCENE COUNT: ${sceneCount}
+RUNTIME: ${minutes} minutes
+SCENE COUNT: ${sceneCount}
 
-Write all story content in ${language}.
+Write in ${language}. Include:
+1. Original title and logline.
+2. Character bible: names, ages, appearance, clothing, personality,
+   motivations, relationships, and speaking style.
+3. Setting and important objects.
+4. Beginning, conflict, climax, and ending.
+5. Numbered outline for exactly ${sceneCount} scenes.
+6. Logical transitions between scenes.
 
-Include:
-1. Original title and one-sentence logline.
-2. Character bible: name, age, appearance, clothing, personality,
-   motivation, relationships, and speaking style.
-3. Setting, time period, and important objects.
-4. Complete beginning, escalating conflict, climax, and ending.
-5. A numbered outline for exactly ${sceneCount} scenes.
-6. The specific event that connects each scene to the next.
-7. The final reveal or resolution.
-
-Make every plot event logical. Keep character and location details fixed.
-Do not write the full scene dialogue yet.
-Return a concise but complete blueprint.
-`,
-    2500
+Keep every character and story fact consistent.
+Do not write full scene dialogue yet.`,
+    2200
   );
 
   if (!blueprint) {
-    throw new Error("Hindi nakagawa ng story blueprint. Subukan ulit.");
+    throw new Error("Hindi nagawa ang story blueprint. Subukan ulit.");
   }
 
-  const scenes: string[] = [];
+  return blueprint;
+}
 
-  for (let i = 0; i < sceneCount; i++) {
-    const duration = durations[i];
-    const previousScene = scenes.length
-      ? scenes[scenes.length - 1]
-      : "Wala pa. Ito ang unang eksena.";
+async function createOpening(
+  env: Env,
+  settings: ReturnType<typeof getSettings>,
+  blueprint: string
+): Promise<string> {
+  const scene = await generate(
+    env,
+    `Write ONLY the opening scene of this original film.
+
+STORY BLUEPRINT:
+${blueprint}
+
+IDEA: ${settings.idea}
+LANGUAGE: ${settings.language}
+GENRE: ${settings.genre}
+VISUAL STYLE: ${settings.visualStyle}
+
+Write in ${settings.language}.
+Keep all character and setting details consistent.
+
+Required format:
+SCENE 1 — [short title]
+DURATION: ${Math.floor(settings.minutes * 60 / getSceneCount(settings.minutes))} seconds
+LOCATION:
+CHARACTERS PRESENT:
+VISUAL ACTION:
+DIALOGUE:
+CAMERA:
+SOUND:
+ENDING HOOK:
+
+Make the opening engaging, filmable, and logically connected to the
+story. Use natural dialogue and return only Scene 1.`,
+    1200
+  );
+
+  if (!scene || !/^\s*(?:#{1,6}\s*)?(?:SCENE|EKSENA)\s*#?\s*1\b/im.test(scene)) {
+    throw new Error("Hindi nagawa nang tama ang Opening Scene. Subukan ulit.");
+  }
+
+  return scene;
+}
+
+async function createRemainingScenes(
+  env: Env,
+  settings: ReturnType<typeof getSettings>,
+  blueprint: string,
+  opening: string
+): Promise<string> {
+  const sceneCount = getSceneCount(settings.minutes);
+  const totalSeconds = settings.minutes * 60;
+  const baseDuration = Math.floor(totalSeconds / sceneCount);
+  const extraSeconds = totalSeconds % sceneCount;
+  const scenes = [opening];
+
+  for (let i = 2; i <= sceneCount; i++) {
+    const duration = baseDuration + (i <= extraSeconds ? 1 : 0);
+    const previousScene = scenes[scenes.length - 1];
 
     const scene = await generate(
       env,
-      `
-Write ONLY SCENE ${i + 1} of an original short film.
+      `Write ONLY SCENE ${i} of this original film.
 
 FIXED STORY BLUEPRINT:
 ${blueprint}
 
-USER'S ORIGINAL IDEA:
-${idea}
+USER IDEA: ${settings.idea}
+LANGUAGE: ${settings.language}
+GENRE: ${settings.genre}
+VISUAL STYLE: ${settings.visualStyle}
 
-LANGUAGE: ${language}
-GENRE: ${genre}
-VISUAL STYLE: ${visualStyle}
-
-SCENE NUMBER: ${i + 1} of ${sceneCount}
-EXACT DURATION: ${duration} seconds
-
-PREVIOUS SCENE FOR CONTINUITY:
+PREVIOUS SCENE:
 ${previousScene.slice(-1800)}
 
-Write all story content in ${language}.
-Use the blueprint as the source of truth. Do not change character
-names, appearance, relationships, motivations, setting, or story facts.
-Continue naturally from the previous scene.
+Write in ${settings.language}. Preserve all established character,
+appearance, relationship, location, and story facts. Continue naturally.
 
 Required format:
-
-SCENE ${i + 1} — [short title]
+SCENE ${i} — [short title]
 DURATION: ${duration} seconds
 LOCATION:
 CHARACTERS PRESENT:
-VISUAL ACTION: Specific chronological actions that can be filmed.
-DIALOGUE: Natural, concise dialogue with speaker names.
-CAMERA: Practical shot types and camera movement.
-SOUND: Relevant ambience, effects, and music.
-ENDING HOOK: A specific reveal, decision, threat, or visual event
-that advances this story. For the final scene, give the real ending.
+VISUAL ACTION:
+DIALOGUE:
+CAMERA:
+SOUND:
+ENDING HOOK:
 
-Rules:
-- Every field must contain useful information.
-- Do not add characters or events that contradict the blueprint.
-- Do not repeat the previous scene.
-- Dialogue must fit the duration.
-- Avoid vague, nonsensical, or unrelated lines.
-- Return only this one scene, not the entire plan.
-`,
-      1200
+The last scene must deliver a real ending. Do not repeat the previous
+scene. Return only Scene ${i}.`,
+      1000
     );
 
-    if (!scene) {
+    if (
+      !scene ||
+      !new RegExp("^\\s*(?:#{1,6}\\s*)?(?:SCENE|EKSENA)\\s*#?\\s*" + i + "\\b", "im").test(scene)
+    ) {
       throw new Error(
-        `Hindi nabuo ang Scene ${i + 1}. Subukan ulit ang drama plan.`
+        `Hindi nabuo nang tama ang Scene ${i}. Walang naipadalang video request.`
       );
     }
 
     scenes.push(scene);
   }
 
-  const plan = [
+  return [
     "DRAMA TITLE AND STORY PLAN",
     "",
     "STORY BLUEPRINT:",
@@ -281,37 +265,11 @@ Rules:
     "",
     "SCENE PLAN:",
     "",
-    ...scenes.flatMap((scene, i) => [
-      scene,
-      ...(i < scenes.length - 1 ? [""] : []),
-    ]),
+    scenes.join("\n\n"),
     "",
     "CONTINUITY NOTE:",
-    "All scenes follow the shared story blueprint above.",
+    "The scenes follow the supplied story blueprint.",
   ].join("\n");
-
-  const numberedScenes = scenes
-    .map((scene) => {
-      const match = scene.match(
-        /^[ \t]*(?:#{1,6}[ \t]*)?(?:SCENE|EKSENA)[ \t]*#?[ \t]*(\d+)\b/im
-      );
-      return match ? `SCENE ${match[1]}` : scene;
-    })
-    .join("\n");
-
-  if (!hasSceneHeadings(numberedScenes, sceneCount)) {
-    throw new Error(
-      "Hindi pumasa sa scene numbering check. Subukan ulit."
-    );
-  }
-
-  if (hasExcessiveRepetition(scenes.join("\n\n"))) {
-    throw new Error(
-      "May magkaparehong mahahabang talata sa scenes. Subukan ulit."
-    );
-  }
-
-  return plan;
 }
 
 export default {
@@ -319,10 +277,7 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders,
-      });
+      return new Response(null, { status: 204, headers: corsHeaders });
     }
 
     if (url.pathname === "/api/health" && request.method === "GET") {
@@ -333,107 +288,86 @@ export default {
       });
     }
 
-    if (url.pathname === "/api/video" && request.method === "POST") {
+    if (url.pathname === "/api/opening" && request.method === "POST") {
       try {
-        // Check the secret access code before processing the request.
-        const suppliedCode = request.headers.get("X-Video-Access");
-
-        if (
-          !env.VIDEO_ACCESS_CODE ||
-          suppliedCode !== env.VIDEO_ACCESS_CODE
-        ) {
-          return json(
-            {
-              success: false,
-              error: "Hindi awtorisado ang video request.",
-            },
-            401
-          );
-        }
-
         const body = await request.json() as Record<string, unknown>;
-        const prompt = cleanInput(body.prompt, "");
+        const settings = getSettings(body);
+        const blueprint = await createBlueprint(env, settings);
+        const opening = await createOpening(env, settings, blueprint);
 
-        if (!prompt) {
-          return json(
-            { success: false, error: "Ilagay ang video prompt." },
-            400
-          );
-        }
+        return json({
+          success: true,
+          blueprint,
+          opening,
+          settings,
+        });
+      } catch (error) {
+        const message = error instanceof Error
+          ? error.message
+          : "Hindi nagawa ang Opening Scene.";
 
-        if (!env.MAGIC_HOUR_API_KEY) {
-          return json(
-            {
-              success: false,
-              error: "Nawawala ang Magic Hour API key.",
-            },
-            500
-          );
-        }
-
-        // This request has not yet been verified against a live API.
-        const response = await fetch(
-          "https://api.magichour.ai/v1/text-to-video",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${env.MAGIC_HOUR_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              name: "AI Drama Studio video",
-              end_seconds: 3,
-              aspect_ratio: "16:9",
-              model: "ltx-2.5",
-              resolution: "480p",
-              audio: true,
-              style: { prompt },
-            }),
-          }
-        );
-
-        const result = await response.json().catch(() => ({
-          error: "Hindi mabasa ang sagot mula sa video provider.",
-        }));
-
-        return json(
-          {
-            success: response.ok,
-            result,
-          },
-          response.ok ? 200 : 502
-        );
-      } catch {
-        return json(
-          {
-            success: false,
-            error: "Hindi naipadala ang video request. Subukan ulit.",
-          },
-          500
-        );
+        return json({ success: false, error: message }, 500);
       }
     }
 
-    if (url.pathname === "/api/chat" && request.method === "POST") {
+    if (url.pathname === "/api/continue" && request.method === "POST") {
       try {
         const body = await request.json() as Record<string, unknown>;
-        const plan = await createDramaPlan(env, body);
+        const settings = getSettings(body);
+        const blueprint = cleanInput(body.blueprint);
+        const opening = cleanInput(body.opening);
+
+        if (!blueprint || !opening) {
+          return json({
+            success: false,
+            error: "Kulang ang blueprint o Opening Scene. Gumawa muna ng bagong draft.",
+          }, 400);
+        }
+
+        if (
+          !/^\s*(?:#{1,6}\s*)?(?:SCENE|EKSENA)\s*#?\s*1\b/im.test(opening)
+        ) {
+          return json({
+            success: false,
+            error: "Hindi valid ang Opening Scene.",
+          }, 400);
+        }
+
+        const plan = await createRemainingScenes(
+          env,
+          settings,
+          blueprint,
+          opening
+        );
 
         return json({ success: true, plan });
       } catch (error) {
         const message = error instanceof Error
           ? error.message
-          : "May hindi inaasahang problema sa paggawa ng drama plan.";
+          : "Hindi nakumpleto ang drama plan.";
 
-        return json(
-          {
-            success: false,
-            error: message,
-            message,
-          },
-          500
-        );
+        return json({ success: false, error: message }, 500);
       }
+    }
+
+    /*
+     * Video generation is intentionally disabled in this workflow.
+     * This prevents accidental paid requests while the approval flow
+     * is being tested. Restore the video endpoint only after its
+     * provider request and job-status workflow have been verified.
+     */
+    if (url.pathname === "/api/video" && request.method === "POST") {
+      return json({
+        success: false,
+        error: "Pansamantalang naka-disable ang video generation habang sinusubukan ang approval workflow.",
+      }, 503);
+    }
+
+    if (url.pathname === "/api/chat" && request.method === "POST") {
+      return json({
+        success: false,
+        error: "Gamitin ang /api/opening para sa Opening Scene.",
+      }, 400);
     }
 
     return env.ASSETS.fetch(request);
