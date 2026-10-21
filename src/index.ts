@@ -7,7 +7,7 @@ interface Env {
     ) => Promise<unknown>;
   };
   MAGIC_HOUR_API_KEY: string;
-VIDEO_ACCESS_CODE: string;
+  VIDEO_ACCESS_CODE: string;
   ASSETS: {
     fetch: (request: Request) => Promise<Response>;
   };
@@ -18,7 +18,7 @@ const MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, X-Video-Access",
 };
 
 function json(data: unknown, status = 200): Response {
@@ -27,6 +27,7 @@ function json(data: unknown, status = 200): Response {
     headers: {
       ...corsHeaders,
       "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
     },
   });
 }
@@ -42,8 +43,13 @@ function getText(result: unknown): string {
     if (typeof value.output === "string") return value.output;
 
     if (Array.isArray(value.choices)) {
-      const choice = value.choices[0] as Record<string, unknown>;
-      const message = choice?.message as Record<string, unknown>;
+      const choice = value.choices[0] as
+        | Record<string, unknown>
+        | undefined;
+      const message = choice?.message as
+        | Record<string, unknown>
+        | undefined;
+
       if (typeof message?.content === "string") {
         return message.content;
       }
@@ -108,8 +114,9 @@ function hasSceneHeadings(text: string, expected: number): boolean {
 
   return (
     numbers.size === expected &&
-    Array.from({ length: expected }, (_, i) => i + 1)
-      .every((number) => numbers.has(number))
+    Array.from({ length: expected }, (_, i) => i + 1).every(
+      (number) => numbers.has(number)
+    )
   );
 }
 
@@ -162,7 +169,6 @@ async function createDramaPlan(
     (_, i) => baseDuration + (i < extraSeconds ? 1 : 0)
   );
 
-  // STEP 1: Create one shared story blueprint.
   const blueprint = await generate(
     env,
     `
@@ -200,7 +206,6 @@ Return a concise but complete blueprint.
     throw new Error("Hindi nakagawa ng story blueprint. Subukan ulit.");
   }
 
-  // STEP 2: Generate each scene using the same blueprint.
   const scenes: string[] = [];
 
   for (let i = 0; i < sceneCount; i++) {
@@ -268,7 +273,6 @@ Rules:
     scenes.push(scene);
   }
 
-  // STEP 3: Assemble the plan and check the scene count.
   const plan = [
     "DRAMA TITLE AND STORY PLAN",
     "",
@@ -286,13 +290,16 @@ Rules:
     "All scenes follow the shared story blueprint above.",
   ].join("\n");
 
-  if (!hasSceneHeadings(
-    scenes.map((scene) => {
-      const match = scene.match(/^\s*(?:#{1,6}\s*)?(?:SCENE|EKSENA)\s*#?\s*(\d+)\b/im);
+  const numberedScenes = scenes
+    .map((scene) => {
+      const match = scene.match(
+        /^\s*(?:#{1,6}\s*)?(?:SCENE|EKSENA)\s*#?\s*(\d+)\b/im
+      );
       return match ? `SCENE ${match[1]}` : scene;
-    }).join("\n"),
-    sceneCount
-  )) {
+    })
+    .join("\n");
+
+  if (!hasSceneHeadings(numberedScenes, sceneCount)) {
     throw new Error(
       "Hindi pumasa sa scene numbering check. Subukan ulit."
     );
@@ -318,7 +325,7 @@ export default {
       });
     }
 
-    if (url.pathname === "/api/health") {
+    if (url.pathname === "/api/health" && request.method === "GET") {
       return json({
         ok: true,
         service: "AI Drama Studio",
@@ -328,23 +335,49 @@ export default {
 
     if (url.pathname === "/api/video" && request.method === "POST") {
       try {
+        // Check the secret access code before processing the request.
+        const suppliedCode = request.headers.get("X-Video-Access");
+
+        if (
+          !env.VIDEO_ACCESS_CODE ||
+          suppliedCode !== env.VIDEO_ACCESS_CODE
+        ) {
+          return json(
+            {
+              success: false,
+              error: "Hindi awtorisado ang video request.",
+            },
+            401
+          );
+        }
+
         const body = await request.json() as Record<string, unknown>;
         const prompt = cleanInput(body.prompt, "");
 
         if (!prompt) {
-          return json({ success: false, error: "Ilagay ang video prompt." }, 400);
+          return json(
+            { success: false, error: "Ilagay ang video prompt." },
+            400
+          );
         }
 
         if (!env.MAGIC_HOUR_API_KEY) {
-          return json({ success: false, error: "Nawawala ang Magic Hour API key." }, 500);
+          return json(
+            {
+              success: false,
+              error: "Nawawala ang Magic Hour API key.",
+            },
+            500
+          );
         }
 
+        // This request has not yet been verified against a live API.
         const response = await fetch(
           "https://api.magichour.ai/v1/text-to-video",
           {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${env.MAGIC_HOUR_API_KEY}`,
+              Authorization: `Bearer ${env.MAGIC_HOUR_API_KEY}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
@@ -359,17 +392,25 @@ export default {
           }
         );
 
-        const result = await response.json() as Record<string, unknown>;
+        const result = await response.json().catch(() => ({
+          error: "Hindi mabasa ang sagot mula sa video provider.",
+        }));
 
-        return json({
-          success: response.ok,
-          result,
-        }, response.ok ? 200 : 502);
+        return json(
+          {
+            success: response.ok,
+            result,
+          },
+          response.ok ? 200 : 502
+        );
       } catch {
-        return json({
-          success: false,
-          error: "Hindi naipadala ang video request. Subukan ulit.",
-        }, 500);
+        return json(
+          {
+            success: false,
+            error: "Hindi naipadala ang video request. Subukan ulit.",
+          },
+          500
+        );
       }
     }
 
@@ -384,11 +425,14 @@ export default {
           ? error.message
           : "May hindi inaasahang problema sa paggawa ng drama plan.";
 
-        return json({
-          success: false,
-          error: message,
-          message,
-        }, 500);
+        return json(
+          {
+            success: false,
+            error: message,
+            message,
+          },
+          500
+        );
       }
     }
 
