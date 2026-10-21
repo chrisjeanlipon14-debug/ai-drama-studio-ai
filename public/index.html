@@ -5,15 +5,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111827">
+  <meta name="description" content="AI Drama Studio — gumawa ng original drama stories at cinematic production plans.">
   <title>AI Drama Studio</title>
+
   <style>
     :root {
       --bg: #0b1020;
       --panel: #141b2e;
+      --panel2: #0b1120;
       --text: #f5f7ff;
       --muted: #aab4cc;
       --line: #303b58;
       --accent: #ff8a3d;
+      --green: #a9f4c5;
+      --red: #ffbaba;
     }
 
     * { box-sizing: border-box; }
@@ -22,7 +27,7 @@
       margin: 0;
       background: var(--bg);
       color: var(--text);
-      font: 16px/1.5 system-ui, sans-serif;
+      font: 16px/1.55 system-ui, sans-serif;
     }
 
     header {
@@ -32,19 +37,30 @@
     }
 
     .wrap, main {
-      max-width: 900px;
+      width: min(100% - 28px, 1000px);
       margin: auto;
     }
 
     .brand {
-      font-size: 22px;
+      font-size: 23px;
       font-weight: 900;
       color: var(--accent);
     }
 
     .muted { color: var(--muted); font-size: 13px; }
 
-    main { padding: 22px 14px 40px; }
+    main { padding: 24px 0 44px; }
+
+    h1 {
+      font-size: clamp(26px, 5vw, 36px);
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    h2 { font-size: 19px; margin: 0 0 12px; }
+    h3 { font-size: 16px; margin: 0 0 8px; }
+
+    p { margin-top: 8px; }
 
     .card {
       background: var(--panel);
@@ -52,10 +68,8 @@
       border-radius: 15px;
       padding: 18px;
       margin-bottom: 16px;
+      min-width: 0;
     }
-
-    h1 { font-size: clamp(26px, 5vw, 36px); }
-    h2 { font-size: 19px; margin-top: 0; }
 
     label {
       display: block;
@@ -64,10 +78,10 @@
       font-weight: 800;
     }
 
-    textarea, select {
+    textarea, select, input {
       width: 100%;
       padding: 12px;
-      background: #0b1120;
+      background: var(--panel2);
       border: 1px solid var(--line);
       border-radius: 10px;
       color: var(--text);
@@ -85,7 +99,7 @@
       gap: 12px;
     }
 
-    .lengths {
+    .lengths, .actions {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
@@ -94,14 +108,19 @@
     button {
       cursor: pointer;
       font: inherit;
+      border-radius: 9px;
+      padding: 10px 14px;
+    }
+
+    button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
     }
 
     .length-btn, .secondary {
-      background: #0b1120;
+      background: var(--panel2);
       color: var(--text);
       border: 1px solid var(--line);
-      border-radius: 9px;
-      padding: 9px 13px;
     }
 
     .length-btn.selected {
@@ -109,50 +128,80 @@
       background: #422817;
     }
 
-    #send-button {
-      width: 100%;
-      padding: 14px;
-      margin-top: 18px;
-      border: 0;
-      border-radius: 10px;
+    .primary {
       background: var(--accent);
       color: #211207;
+      border: 0;
       font-weight: 900;
     }
 
-    button:disabled { opacity: .6; cursor: wait; }
+    #send-button {
+      width: 100%;
+      padding: 15px;
+      margin-top: 18px;
+    }
 
-    #status {
+    .status {
       margin-top: 12px;
-      padding: 10px;
+      padding: 11px;
       border-radius: 8px;
-      background: #0b1120;
+      background: var(--panel2);
       color: var(--muted);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
       font-size: 13px;
     }
 
-    #status.error { color: #ffbaba; }
-    #status.ok { color: #a9f4c5; }
+    .status.error { color: var(--red); }
+    .status.ok { color: var(--green); }
 
-    #result { display: none; }
+    #result, #approval-panel, #video-panel {
+      display: none;
+    }
 
-    #output {
+    #output, #opening-scene {
       white-space: pre-wrap;
       overflow-wrap: anywhere;
-      background: #0b1120;
+      background: var(--panel2);
       border: 1px solid var(--line);
       border-radius: 10px;
       padding: 14px;
       font: 14px/1.7 system-ui, sans-serif;
+      min-height: 60px;
     }
 
-    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .note {
+      padding: 12px;
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .approval-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .approve {
+      background: #17452f;
+      border: 1px solid #26784d;
+      color: #d6ffe5;
+      font-weight: 800;
+    }
+
+    .revise {
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      color: var(--text);
+    }
 
     footer {
       text-align: center;
-      padding: 20px;
+      padding: 22px 14px;
       color: var(--muted);
       font-size: 12px;
     }
@@ -160,6 +209,8 @@
     @media (max-width: 620px) {
       .grid { grid-template-columns: 1fr; }
       .card { padding: 14px; }
+      .wrap, main { width: min(100% - 20px, 1000px); }
+      .approval-actions button { flex: 1 1 100%; }
     }
   </style>
 </head>
@@ -168,13 +219,15 @@
 <header>
   <div class="wrap">
     <div class="brand">🎬 AI Drama Studio</div>
-    <div class="muted">Tagalog Horror • Drama • Short Videos</div>
+    <div class="muted">Original Drama • Romance • Horror • Short Videos</div>
   </div>
 </header>
 
 <main>
   <h1>Gawing kuwento ang ideya mo.</h1>
-  <p class="muted">Bumuo ng drama plan bago gumawa ng video.</p>
+  <p class="muted">
+    Gumawa ng drama plan, suriin ang opening scene, at ihanda ang production.
+  </p>
 
   <section class="card">
     <h2>💡 Drama Idea</h2>
@@ -182,7 +235,7 @@
 
     <label for="user-input">Ideya ng kuwento</label>
     <textarea id="user-input"
-      placeholder="Halimbawa: Isang babae ang nakaririnig ng katok sa aparador tuwing alas-dose ng gabi..."></textarea>
+      placeholder="Halimbawa: Isang babae ang nakatuklas na may lihim ang kanyang bilyonaryong asawa..."></textarea>
 
     <div class="grid">
       <div>
@@ -226,27 +279,70 @@
       <button type="button" class="length-btn" data-minutes="10">10 min</button>
     </div>
 
-    <button id="send-button" type="button">
+    <button id="send-button" class="primary" type="button">
       🎬 Create Drama Plan
     </button>
 
-    <div id="status" role="status" aria-live="polite">
+    <div id="status" class="status" role="status" aria-live="polite">
       Handa na. Ilagay ang ideya mo.
+    </div>
+  </section>
+
+  <section id="approval-panel" class="card">
+    <h2>🎬 Opening Scene Approval</h2>
+    <p class="muted">
+      Suriin muna ang unang eksena bago magpatuloy sa buong production plan.
+    </p>
+
+    <div id="opening-scene"></div>
+
+    <div class="note">
+      Ang pag-apruba rito ay para sa story workflow lamang.
+      Hindi ito nangangahulugang nagawa na ang isang video.
+    </div>
+
+    <div class="approval-actions">
+      <button id="approve-opening" class="approve" type="button">
+        ✓ Approve Opening Scene
+      </button>
+      <button id="revise-opening" class="revise" type="button">
+        ✎ Revise Opening Scene
+      </button>
+    </div>
+
+    <div id="approval-status" class="status" role="status" aria-live="polite">
+      Basahin ang opening scene bago magpatuloy.
     </div>
   </section>
 
   <section id="result" class="card">
     <h2>📜 Drama Plan</h2>
+
     <div class="actions">
       <button id="copy-button" class="secondary" type="button">Kopyahin</button>
       <button id="download-button" class="secondary" type="button">I-download</button>
     </div>
+
     <pre id="output"></pre>
+  </section>
+
+  <section id="video-panel" class="card">
+    <h2>🎥 Video Production</h2>
+    <p class="muted">
+      Hindi pa nagsisimula ang video generation. Ihahanda muna ang ligtas
+      na koneksiyon at status checking bago magpadala ng paid request.
+    </p>
+
+    <div id="video-status" class="status" role="status" aria-live="polite">
+      Hindi pa handa ang video generation.
+    </div>
   </section>
 </main>
 
-<footer>AI Drama Studio • Original Drama Planning</footer>
+<footer>
+  AI Drama Studio • Original Drama Planning
+</footer>
 
-<script src="/chat.js?v=20261016-1" defer></script>
+<script src="/chat.js?v=20261021-2" defer></script>
 </body>
 </html>
