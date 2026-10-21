@@ -106,7 +106,7 @@ function getSceneCount(minutes: number): number {
 function hasSceneHeadings(text: string, expected: number): boolean {
   const matches = [
     ...text.matchAll(
-      /^\s*(?:#{1,6}\s*)?(?:SCENE|EKSENA)\s*#?\s*(\d+)\b/gim
+     /^[ \t]*(?:#{1,6}[ \t]*)?(?:SCENE|EKSENA)[ \t]*#?[ \t]*(\d+)\b/gim
     ),
   ];
 
@@ -293,7 +293,7 @@ Rules:
   const numberedScenes = scenes
     .map((scene) => {
       const match = scene.match(
-        /^\s*(?:#{1,6}\s*)?(?:SCENE|EKSENA)\s*#?\s*(\d+)\b/im
+        /^[ \t]*(?:#{1,6}[ \t]*)?(?:SCENE|EKSENA)[ \t]*#?[ \t]*(\d+)\b/im
       );
       return match ? `SCENE ${match[1]}` : scene;
     })
