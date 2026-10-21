@@ -7,6 +7,7 @@ interface Env {
     ) => Promise<unknown>;
   };
   MAGIC_HOUR_API_KEY: string;
+VIDEO_ACCESS_CODE: string;
   ASSETS: {
     fetch: (request: Request) => Promise<Response>;
   };
@@ -323,6 +324,53 @@ export default {
         service: "AI Drama Studio",
         model: MODEL,
       });
+    }
+
+    if (url.pathname === "/api/video" && request.method === "POST") {
+      try {
+        const body = await request.json() as Record<string, unknown>;
+        const prompt = cleanInput(body.prompt, "");
+
+        if (!prompt) {
+          return json({ success: false, error: "Ilagay ang video prompt." }, 400);
+        }
+
+        if (!env.MAGIC_HOUR_API_KEY) {
+          return json({ success: false, error: "Nawawala ang Magic Hour API key." }, 500);
+        }
+
+        const response = await fetch(
+          "https://api.magichour.ai/v1/text-to-video",
+          {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${env.MAGIC_HOUR_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name: "AI Drama Studio video",
+              end_seconds: 3,
+              aspect_ratio: "16:9",
+              model: "ltx-2.5",
+              resolution: "480p",
+              audio: true,
+              style: { prompt },
+            }),
+          }
+        );
+
+        const result = await response.json() as Record<string, unknown>;
+
+        return json({
+          success: response.ok,
+          result,
+        }, response.ok ? 200 : 502);
+      } catch {
+        return json({
+          success: false,
+          error: "Hindi naipadala ang video request. Subukan ulit.",
+        }, 500);
+      }
     }
 
     if (url.pathname === "/api/chat" && request.method === "POST") {
