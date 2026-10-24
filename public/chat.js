@@ -134,6 +134,7 @@
       input.focus();
       return;
     }
+    resetDraft();
 
     currentSettings = {
       idea,
@@ -143,7 +144,7 @@
       durationMinutes: selectedMinutes
     };
 
-    resetDraft();
+    
     setBusy(true, "⏳ Gumagawa ng Opening Scene...");
     setStatus("Unang hakbang: ginagawa ang Opening Scene.");
 
