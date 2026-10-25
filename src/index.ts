@@ -249,14 +249,13 @@ scene. Return only Scene ${i}.`,
       1000
     );
 
-    if (
-      !scene ||
-      !new RegExp("^\\s*(?:#{1,6}\\s*)?(?:SCENE|EKSENA)\\s*#?\\s*" + i + "\\b", "im").test(scene)
-    ) {
-      throw new Error(
-        `Hindi nabuo nang tama ang Scene ${i}. Walang naipadalang video request.`
-      );
-    }
+     if (
+  !scene ||
+  !scene.trim() ||
+  !/(?:SCENE|EKSENA)\s*#?\s*1\b/i.test(scene)
+) {
+  throw new Error("Hindi nagawa nang tama ang Opening Scene. Subukan ulit.");
+}
 
     scenes.push(scene);
   }
