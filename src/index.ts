@@ -249,13 +249,14 @@ scene. Return only Scene ${i}.`,
       1000
     );
 
-     if (
-  !scene ||
-  !scene.trim() ||
-  !/(?:SCENE|EKSENA)\s*#?\s*1\b/i.test(scene)
-) {
-  throw new Error("Hindi nagawa nang tama ang Opening Scene. Subukan ulit.");
-}
+  
+    if (
+      !scene ||
+      !scene.trim() ||
+      !new RegExp(`(?:SCENE|EKSENA)\\s*#?\\s*${i}\\b`, "i").test(scene)
+    ) {
+      throw new Error(`Hindi nagawa nang tama ang Scene ${i}. Subukan ulit.`);
+    }
 
     scenes.push(scene);
   }
