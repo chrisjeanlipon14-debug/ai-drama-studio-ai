@@ -6,80 +6,179 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#100d18">
 <title>AI Drama Studio</title>
+
 <style>
 :root {
   color-scheme: dark;
   --bg:#0d0b12;
-  --panel:#17131f;
-  --line:#30283b;
+  --panel:#191522;
+  --line:#342b40;
   --text:#f7f2ff;
   --muted:#b8adbf;
   --accent:#c7a5ff;
 }
+
 * { box-sizing:border-box; }
+
 body {
   margin:0;
-  background:radial-gradient(circle at 80% 0,#2a1d3c 0,transparent 34%),var(--bg);
+  background:
+    radial-gradient(circle at 80% 0,#302044 0,transparent 35%),
+    var(--bg);
   color:var(--text);
   font:15px/1.55 system-ui,Arial,sans-serif;
 }
-.wrap { max-width:1000px; margin:auto; padding:22px; }
+
+.wrap {
+  max-width:1000px;
+  margin:auto;
+  padding:22px;
+}
+
 .top {
-  display:flex; justify-content:space-between;
-  align-items:center; gap:12px; flex-wrap:wrap;
-  border-bottom:1px solid var(--line); padding:8px 0 18px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  border-bottom:1px solid var(--line);
+  padding:8px 0 18px;
 }
-.brand { font-weight:850; letter-spacing:.06em; }
+
+.brand {
+  font-weight:850;
+  letter-spacing:.06em;
+  font-size:19px;
+}
+
 .brand span { color:var(--accent); }
+
 .pill {
-  border:1px solid var(--line); border-radius:999px;
-  padding:5px 10px; color:var(--muted); font-size:12px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:5px 10px;
+  color:var(--muted);
+  font-size:12px;
 }
-h1 { font-size:clamp(30px,6vw,48px); line-height:1.08; margin:26px 0 10px; }
-h2 { font-size:21px; margin:0 0 12px; }
+
+h1 {
+  font-size:clamp(30px,6vw,48px);
+  line-height:1.08;
+  margin:28px 0 10px;
+}
+
+h2 {
+  font-size:21px;
+  margin:0 0 12px;
+}
+
 p { color:var(--muted); }
+
 .card {
-  background:linear-gradient(180deg,#1b1624,#14111a);
-  border:1px solid var(--line); border-radius:16px;
-  padding:20px; margin:18px 0;
+  background:linear-gradient(180deg,#1d1827,#15121b);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:20px;
+  margin:18px 0;
 }
-label { display:block; font-weight:700; margin:14px 0 7px; }
+
+label {
+  display:block;
+  font-weight:700;
+  margin:14px 0 7px;
+}
+
 textarea,select {
-  width:100%; background:#0e0b13; color:var(--text);
-  border:1px solid #40364c; border-radius:10px;
-  padding:12px; font:inherit;
+  width:100%;
+  background:#0e0b13;
+  color:var(--text);
+  border:1px solid #453951;
+  border-radius:10px;
+  padding:13px;
+  font:inherit;
 }
-textarea { min-height:150px; resize:vertical; }
+
+textarea {
+  min-height:150px;
+  resize:vertical;
+}
+
 textarea:focus,select:focus {
-  outline:2px solid #8c65d8; border-color:transparent;
+  outline:2px solid #9670d4;
+  border-color:transparent;
 }
+
 .grid {
-  display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
   gap:12px;
 }
-.actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
-button {
-  border:0; border-radius:10px; padding:12px 16px;
-  font-weight:750; cursor:pointer;
-  background:#30263d; color:white;
+
+.actions {
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:16px;
 }
+
+button {
+  border:0;
+  border-radius:10px;
+  padding:12px 16px;
+  font-weight:750;
+  cursor:pointer;
+  background:#30263d;
+  color:white;
+}
+
 button.primary {
-  background:linear-gradient(135deg,#c7a5ff,#8c65d8);
+  background:linear-gradient(135deg,#d4baff,#9870d7);
   color:#160e20;
 }
-button:disabled { opacity:.5; cursor:not-allowed; }
+
+button:disabled {
+  opacity:.5;
+  cursor:not-allowed;
+}
+
 .status {
-  padding:12px; border-radius:10px;
-  background:#211a2b; color:#e8d9ff;
-  margin:14px 0; white-space:pre-wrap;
+  padding:12px;
+  border-radius:10px;
+  background:#211a2b;
+  color:#e8d9ff;
+  margin:14px 0;
+  white-space:pre-wrap;
 }
-.status.error { background:#351b20; color:#ffd8dc; }
+
+.status.error {
+  background:#351b20;
+  color:#ffd8dc;
+}
+
 .output {
-  white-space:pre-wrap; overflow-wrap:anywhere;
-  line-height:1.65; color:#f2eaf9;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  line-height:1.7;
+  color:#f2eaf9;
 }
+
 .hidden { display:none!important; }
-.small { font-size:12px; color:var(--muted); }
+
+.small {
+  font-size:12px;
+  color:var(--muted);
+}
+
+.mode-note {
+  background:#211a2b;
+  border:1px solid #443456;
+  border-radius:10px;
+  padding:12px;
+  margin-top:10px;
+  color:#e6d9f8;
+  font-size:13px;
+}
+
 @media(max-width:650px) {
   .wrap { padding:14px; }
   .grid { grid-template-columns:1fr; }
@@ -87,21 +186,40 @@ button:disabled { opacity:.5; cursor:not-allowed; }
 }
 </style>
 </head>
+
 <body>
 <main class="wrap">
 
 <header class="top">
   <div class="brand">AI <span>DRAMA</span> STUDIO</div>
-  <div class="pill">Version 1.1 • Genre Selection</div>
+  <div class="pill">CREATOR STUDIO V2</div>
 </header>
 
-<h1>Turn your idea into a complete drama.</h1>
-<p>Choose your genre, enter your story idea, review the opening scene, then approve your full screenplay.</p>
+<h1>Bring your story to life.</h1>
+
+<p>
+Create original movies, short dramas, horror stories,
+Roblox adventures and more with AI.
+</p>
 
 <section class="card">
-<h2>1. Create your drama</h2>
 
-<label for="genre">Choose your genre</label>
+<h2>1. Create Your Drama</h2>
+
+<label for="mode">Production Mode</label>
+
+<select id="mode">
+  <option value="short">Short Drama Episodes</option>
+  <option value="movie">Full Movie</option>
+</select>
+
+<div class="mode-note" id="modeNote">
+  Create short episodes for Facebook Reels,
+  TikTok and YouTube Shorts.
+</div>
+
+<label for="genre">Choose Your Genre</label>
+
 <select id="genre">
   <option value="Love Story">❤️ Love Story</option>
   <option value="Horror">👻 Horror</option>
@@ -115,12 +233,18 @@ button:disabled { opacity:.5; cursor:not-allowed; }
   <option value="Inspirational Story">❤️ Inspirational Story</option>
 </select>
 
-<label for="idea">Story idea / blueprint</label>
-<textarea id="idea" placeholder="Ilagay dito ang story idea mo. Halimbawa: Isang mahirap na babae ang inaapi dahil sa pag-ibig..."></textarea>
+<label for="idea">Story Idea / Blueprint</label>
+
+<textarea
+  id="idea"
+  maxlength="18000"
+  placeholder="Describe your story here. Who are the characters? What happens? What kind of ending do you want?"
+></textarea>
 
 <div class="grid">
+
   <div>
-    <label for="duration">Video length</label>
+    <label for="duration">Video Length</label>
     <select id="duration">
       <option value="1">1 minute</option>
       <option value="3">3 minutes</option>
@@ -133,62 +257,124 @@ button:disabled { opacity:.5; cursor:not-allowed; }
   <div>
     <label for="language">Language</label>
     <select id="language">
-      <option value="Filipino / natural Tagalog" selected>Filipino / Tagalog</option>
+      <option value="Filipino / natural Tagalog" selected>
+        Filipino / Tagalog
+      </option>
       <option value="English">English</option>
     </select>
   </div>
 
   <div>
-    <label for="visual">Visual style</label>
+    <label for="visual">Visual Style</label>
     <select id="visual">
-      <option>Realistic cinematic human</option>
-      <option>2D animation</option>
-      <option>3D animation</option>
-      <option>Roblox-inspired 3D game style</option>
+      <option value="Realistic cinematic human">
+        Realistic Cinematic Human
+      </option>
+      <option value="2D animation">2D Animation</option>
+      <option value="3D animation">3D Animation</option>
+      <option value="Roblox-inspired 3D game style">
+        Roblox-inspired 3D
+      </option>
     </select>
   </div>
 
   <div>
-    <label for="aspect">Video format</label>
+    <label for="aspect">Video Format</label>
     <select id="aspect">
       <option value="9:16">Vertical 9:16</option>
       <option value="16:9">Landscape 16:9</option>
       <option value="1:1">Square 1:1</option>
     </select>
   </div>
+
 </div>
 
 <div class="actions">
-  <button class="primary" id="openingBtn">Generate Opening Scene</button>
+  <button class="primary" id="openingBtn">
+    Generate Opening Scene
+  </button>
 </div>
-<div class="small">Story generation only. Actual video rendering is a separate feature.</div>
+
+<div class="small">
+  Review and approve your opening before generating the complete plan.
+</div>
+
 </section>
 
 <section class="card hidden" id="openingCard">
-<h2>2. Review the opening scene</h2>
+
+<h2>2. Opening Scene Preview</h2>
+
 <div id="openingOutput" class="output"></div>
+
 <div class="actions">
-  <button id="reviseBtn">Regenerate opening</button>
-  <button class="primary" id="approveBtn">Approve opening & create full plan</button>
+  <button id="reviseBtn">Regenerate Opening</button>
+  <button class="primary" id="approveBtn">
+    Approve & Create Full Plan
+  </button>
 </div>
+
 </section>
 
 <section class="card hidden" id="fullCard">
-<h2>3. Complete drama plan</h2>
+
+<h2>3. Complete Drama Plan</h2>
+
 <div id="fullOutput" class="output"></div>
+
 <div class="actions">
-  <button id="copyBtn">Copy full plan</button>
-  <button id="downloadBtn">Download screenplay (.txt)</button>
+  <button id="copyBtn">Copy Full Plan</button>
+  <button id="downloadBtn">Download Screenplay</button>
 </div>
+
 </section>
 
-<div id="status" class="status" role="status" aria-live="polite">
-Ready. Choose a genre and enter your story idea.
+<div
+  id="status"
+  class="status"
+  role="status"
+  aria-live="polite"
+>
+Ready. Choose your production mode and genre.
 </div>
 
-<p class="small">AI screenplay generation is separate from actual video generation and movie assembly.</p>
+<p class="small">
+AI screenplay generation is separate from actual video rendering.
+Video provider integration and movie assembly are not yet enabled.
+</p>
 
 </main>
+
+<script>
+(() => {
+  const mode = document.getElementById("mode");
+  const note = document.getElementById("modeNote");
+  const genre = document.getElementById("genre");
+  const visual = document.getElementById("visual");
+
+  function updateMode() {
+    if (mode.value === "movie") {
+      note.textContent =
+        "Create a complete movie with a beginning, conflict, climax and ending.";
+    } else {
+      note.textContent =
+        "Create short episodes for Facebook Reels, TikTok and YouTube Shorts.";
+    }
+  }
+
+  function updateGenre() {
+    if (genre.value === "Roblox Story") {
+      visual.value = "Roblox-inspired 3D game style";
+    }
+  }
+
+  mode.addEventListener("change", updateMode);
+  genre.addEventListener("change", updateGenre);
+  updateMode();
+})();
+</script>
+
 <script src="/chat.js" defer></script>
+
 </body>
 </html>
