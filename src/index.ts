@@ -11,7 +11,7 @@ interface Env {
 
 type Action = "opening" | "full";
 
-const MODEL_DEFAULT = "@cf/meta/llama-3.1-8b-instruct";
+const MODEL_DEFAULT = "@cf/meta/llama-3.1-8b-instruct-fast";
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -24,36 +24,47 @@ function json(data: unknown, status = 200): Response {
 }
 
 function systemPrompt(
+  genre: string,
   language: string,
   style: string,
   aspect: string
 ): string {
-  return `You are AI DRAMA STUDIO, a professional original drama screenwriter and film pre-production assistant.
+  return `You are AI DRAMA STUDIO, a professional original film and animation writer.
 
-OUTPUT LANGUAGE: ${language}.
-Use natural, grammatically correct language. If Filipino/Tagalog is selected, write natural conversational Filipino, not literal machine translation.
+GENRE: ${genre}
+LANGUAGE: ${language}
+VISUAL STYLE: ${style}
+VIDEO FORMAT: ${aspect}
 
-VISUAL STYLE: ${style}.
-VIDEO ASPECT: ${aspect}.
+GENRE RULES:
+- Love Story: romance, chemistry, emotional conflict and meaningful relationships.
+- Horror: suspense, mystery, frightening atmosphere and logical reveals.
+- Family Drama: family conflict, sacrifice, secrets and emotional relationships.
+- Revenge: betrayal, consequences and a satisfying resolution.
+- Fantasy: imaginative worlds, magic and consistent world rules.
+- Comedy: natural humor, funny situations and entertaining dialogue.
+- Roblox Story: create an original Roblox-inspired blocky 3D game world, avatars, environments, adventures and game-like actions. Do not describe realistic human characters for this genre.
+- Action / Adventure: exciting challenges, clear stakes and cinematic action.
+- Kids / Animal Learning: child-friendly stories, lovable animal characters and simple educational lessons.
+- Inspirational Story: struggles, hope, courage and meaningful life lessons.
 
-NON-NEGOTIABLE RULES:
+IMPORTANT RULES:
+1. Follow the user's story idea and selected genre.
+2. Write natural, grammatically correct ${language}.
+3. Create original stories. Do not copy existing movies, games or shows.
+4. Keep character appearance, age, clothing, personality and identity consistent.
+5. Never change a character's physical features between scenes.
+6. Every scene must move the story forward.
+7. Avoid repetitive actions, filler dialogue and confusing revelations.
+8. Make dialogue natural and emotionally believable.
+9. Maintain logical chronological and location continuity.
+10. Include camera directions, lighting, atmosphere and sound.
+11. Give detailed video prompts with consistent character descriptions.
+12. Make the opening interesting and give the ending a strong emotional impact.
+13. Do not claim that text prompts are already rendered videos.
+14. All romantic characters must be adults.
 
-- Follow the user's supplied blueprint and preserve its intended premise, characters, relationships and requested ending.
-- Do not invent contradictory character facts. Resolve obvious typos and contradictions sensibly; list any important assumptions briefly.
-- Create original material. Do not copy existing films, shows or scripts.
-- Keep character identity consistent: name, age, gender, facial features, hair, eye color, body type, signature clothing and personality.
-- Never assign two eye colors or incompatible physical traits unless explicitly explained.
-- Every scene must advance plot or character.
-- No repeated filler, generic placeholder actions, repetitive dialogue or unexplained revelations.
-- Dialogue must sound natural and match each character's age, personality and relationship.
-- Maintain chronological and spatial continuity.
-- Every scene's ending must connect logically to the next.
-- Provide filmable actions, specific camera framing/movement, lighting, atmosphere and sound design.
-- Distinguish story/screenplay output from actual generated video.
-- You only create text and prompts; never claim to render a video.
-- Avoid sexual content involving minors. All romantic characters must be adults.
-
-Return polished, production-ready writing with clear headings.`;
+Return polished, clear, production-ready writing.`;
 }
 
 async function runAI(
@@ -68,20 +79,18 @@ async function runAI(
     temperature: 0.7
   });
 
-  const text =
+  const output =
     typeof result === "string"
       ? result
-      : (
-          result?.response ||
-          result?.result?.response ||
-          ""
-        );
+      : result?.response ||
+        result?.result?.response ||
+        "";
 
-  if (typeof text !== "string" || !text.trim()) {
-    throw new Error("AI model returned an empty response.");
+  if (typeof output !== "string" || !output.trim()) {
+    throw new Error("AI returned an empty response.");
   }
 
-  return text.trim();
+  return output.trim();
 }
 
 export default {
@@ -95,7 +104,8 @@ export default {
       return json({
         ok: true,
         service: "AI Drama Studio",
-        mode: "story-and-screenplay",
+        mode: "genre-based-story-generation",
+        model: env.AI_MODEL || MODEL_DEFAULT,
         videoGeneration: false
       });
     }
@@ -109,7 +119,7 @@ export default {
 
     if (!env.AI) {
       return json({
-        error: "Hindi naka-configure ang Cloudflare Workers AI binding. Sundin ang README at wrangler.toml."
+        error: "Hindi naka-configure ang Cloudflare Workers AI binding."
       }, 503);
     }
 
@@ -129,21 +139,18 @@ export default {
 
     const settings = body?.settings || {};
 
+    const genre = String(settings.genre || "Love Story");
     const language = String(
       settings.language || "Filipino / natural Tagalog"
     );
-
     const style = String(
       settings.visualStyle || "Realistic cinematic human"
     );
-
-    const aspect = String(
-      settings.aspectRatio || "9:16"
-    );
+    const aspect = String(settings.aspectRatio || "9:16");
 
     const duration = Math.max(
       1,
-      Math.min(60, Number(settings.duration) || 5)
+      Math.min(20, Number(settings.duration) || 5)
     );
 
     if (!["opening", "full"].includes(action)) {
@@ -151,87 +158,83 @@ export default {
     }
 
     if (!idea) {
-      return json({ error: "Ilagay muna ang story idea." }, 400);
+      return json({
+        error: "Ilagay muna ang story idea."
+      }, 400);
     }
 
     if (idea.length > 18000) {
       return json({
-        error: "Input is too long (maximum 18,000 characters)."
+        error: "Maximum 18,000 characters lamang."
       }, 413);
     }
 
     if (action === "full" && body?.approved !== true) {
       return json({
-        error: "Approval required before generating the full plan."
+        error: "Approval required before full plan generation."
       }, 403);
     }
 
-    const system = systemPrompt(language, style, aspect);
+    const system = systemPrompt(
+      genre,
+      language,
+      style,
+      aspect
+    );
 
     const user =
       action === "opening"
-        ? `USER STORY BLUEPRINT:
+        ? `SELECTED GENRE: ${genre}
+
+STORY IDEA:
 ${idea}
 
-TARGET LENGTH: ${duration} minutes.
+TARGET MOVIE LENGTH: ${duration} minutes.
 
 TASK:
-Create ONLY the opening scene for this film.
+Create ONLY the opening scene.
 
 Include:
-1. Working title
-2. One-sentence logline
-3. Concise character bible with fixed visual traits
-4. Opening scene duration
-5. Location
-6. Characters present
-7. Visual action
-8. Natural dialogue
-9. Camera
-10. Lighting
-11. Sound
-12. Continuity notes
-13. Strong end hook
+1. Original movie title.
+2. Short story premise.
+3. Character descriptions.
+4. Scene location and duration.
+5. Cinematic visual actions.
+6. Natural and believable dialogue.
+7. Camera directions.
+8. Lighting and sound.
+9. Continuity notes.
+10. A strong ending hook.
 
-Make it specific and cinematic, not generic.
-Do not write the full movie yet.`
-        : `USER STORY BLUEPRINT:
+Make the opening engaging and appropriate for the selected genre.
+Do not write the complete movie yet.`
+        : `SELECTED GENRE: ${genre}
+
+STORY IDEA:
 ${idea}
 
 APPROVED OPENING SCENE:
-${String(
-  body?.opening ||
-  "The user approved the opening scene generated in the previous step."
-)}
+${String(body?.opening || "")}
 
-TARGET LENGTH: ${duration} minutes.
+TARGET MOVIE LENGTH: ${duration} minutes.
 
 TASK:
-Create the COMPLETE film plan, not merely a summary.
+Create the complete movie screenplay and production plan.
 
 Include:
 1. Final title and logline.
-2. Complete story synopsis with beginning, escalating conflict, climax, resolution and ending.
-3. Locked character bible.
+2. Complete story from beginning to ending.
+3. Character bible with locked visual descriptions.
 4. Locations and visual world.
-5. Scene-by-scene screenplay covering the requested duration.
-6. For EVERY scene include:
-   - Duration
-   - Location
-   - Characters
-   - Visual action
-   - Natural dialogue
-   - Camera
-   - Lighting
-   - Sound
-   - Emotional purpose
-   - Continuity from previous scene
-   - Detailed standalone video-generation prompt including fixed character descriptions.
-7. Final ending and optional sequel hook.
+5. Scene-by-scene screenplay.
+6. For every scene: duration, location, characters, visual actions, dialogue, camera, lighting, sound and continuity.
+7. Detailed standalone video-generation prompts for every scene.
+8. Emotional climax and satisfying ending.
 
-Estimate scene count and duration realistically.
-Ensure the total scene durations approximately equal ${duration} minutes.
-Do not repeat the same generic action or dialogue.`;
+Keep the story consistent with the selected genre.
+Make the scenes logical and connected.
+Make total scene duration approximately ${duration} minutes.
+Do not use repetitive filler.`;
 
     try {
       const text = await runAI(env, [
@@ -242,16 +245,17 @@ Do not repeat the same generic action or dialogue.`;
       return json({
         ok: true,
         action,
+        genre,
         text,
-        generatedAt: new Date().toISOString(),
-        outputType: "text-only"
+        outputType: "text-only",
+        generatedAt: new Date().toISOString()
       });
 
     } catch (error: any) {
       return json({
         error:
           error?.message ||
-          "AI generation failed. Check Workers AI model availability and binding."
+          "AI generation failed. Check the Cloudflare Workers AI model and binding."
       }, 502);
     }
   }
