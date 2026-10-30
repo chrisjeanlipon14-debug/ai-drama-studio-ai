@@ -5,8 +5,6 @@
   const $ = (id) => document.getElementById(id);
 
   const state = {
-    idea: "",
-    settings: null,
     opening: "",
     fullPlan: "",
     approved: false
@@ -18,6 +16,7 @@
   };
 
   const settings = () => ({
+    genre: $("genre").value,
     duration: $("duration").value,
     language: $("language").value,
     visualStyle: $("visual").value,
@@ -25,7 +24,7 @@
   });
 
   const setBusy = (busy) => {
-    ["openingBtn", "reviseBtn", "approveBtn"].forEach((id) => {
+    ["openingBtn", "reviseBtn", "approveBtn"].forEach(id => {
       const el = $(id);
       if (el) el.disabled = busy;
     });
@@ -35,34 +34,29 @@
     const idea = $("idea").value.trim();
 
     if (!idea) {
-      status("Ilagay muna ang story idea o blueprint.", true);
+      status("Ilagay muna ang story idea.", true);
       return null;
     }
 
     if (idea.length > 18000) {
-      status("Masyadong mahaba ang input. Hatiin sa mas maikling bahagi (maximum 18,000 characters).", true);
+      status("Maximum 18,000 characters lamang.", true);
       return null;
     }
 
     if (action === "full" && !state.approved) {
-      status("Kailangan munang i-approve ang Opening Scene.", true);
+      status("I-approve muna ang Opening Scene.", true);
       return null;
     }
 
     setBusy(true);
-
-    status(
-      action === "opening"
-        ? "Ginagawa ang Opening Scene..."
-        : "Ginagawa ang complete drama plan..."
-    );
+    status(action === "opening"
+      ? "Ginagawa ang Opening Scene..."
+      : "Ginagawa ang complete drama plan...");
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
           idea,
@@ -75,21 +69,17 @@
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(
-          data.error || `Request failed (${response.status})`
-        );
+        throw new Error(data.error || `Request failed (${response.status})`);
       }
 
-      if (typeof data.text !== "string" || !data.text.trim()) {
-        throw new Error(
-          "Walang text response ang AI model. Subukan ulit."
-        );
+      if (!data.text || typeof data.text !== "string") {
+        throw new Error("Walang valid na AI response.");
       }
 
       return data.text;
 
-    } catch (err) {
-      status(err.message || "May hindi inaasahang error.", true);
+    } catch (error) {
+      status(error.message || "May error sa AI connection.", true);
       return null;
 
     } finally {
@@ -100,23 +90,16 @@
   async function makeOpening() {
     state.approved = false;
     state.fullPlan = "";
-
     $("fullCard").classList.add("hidden");
 
     const text = await requestAI("opening");
-
     if (!text) return;
 
-    state.idea = $("idea").value.trim();
-    state.settings = settings();
     state.opening = text;
-
     $("openingOutput").textContent = text;
     $("openingCard").classList.remove("hidden");
 
-    status(
-      "Tapos na ang Opening Scene. Basahin at i-approve kung tama."
-    );
+    status("Tapos na! Basahin ang Opening Scene.");
   }
 
   $("openingBtn").addEventListener("click", makeOpening);
@@ -124,15 +107,11 @@
 
   $("approveBtn").addEventListener("click", async () => {
     if (!state.opening) {
-      status(
-        "Wala pang Opening Scene na puwedeng i-approve.",
-        true
-      );
+      status("Wala pang Opening Scene.", true);
       return;
     }
 
     state.approved = true;
-
     const text = await requestAI("full");
 
     if (!text) {
@@ -141,13 +120,10 @@
     }
 
     state.fullPlan = text;
-
     $("fullOutput").textContent = text;
     $("fullCard").classList.remove("hidden");
 
-    status(
-      "Nagawa ang full drama plan. Text screenplay at scene prompts pa lamang ito, hindi pa rendered video."
-    );
+    status("Tapos na ang full drama plan. Text screenplay pa lamang ito.");
   });
 
   $("copyBtn").addEventListener("click", async () => {
@@ -157,10 +133,7 @@
       await navigator.clipboard.writeText(state.fullPlan);
       status("Nakopya ang full drama plan.");
     } catch {
-      status(
-        "Hindi available ang copy permission sa browser na ito.",
-        true
-      );
+      status("Hindi available ang copy permission.", true);
     }
   });
 
@@ -173,18 +146,15 @@
     );
 
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
+    const link = document.createElement("a");
 
-    a.href = url;
-    a.download = "ai-drama-screenplay.txt";
-
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    link.href = url;
+    link.download = "ai-drama-screenplay.txt";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
 
     URL.revokeObjectURL(url);
-
     status("Na-download ang screenplay.");
   });
-
 })();
