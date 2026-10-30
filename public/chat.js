@@ -7,7 +7,9 @@
   const state = {
     opening: "",
     fullPlan: "",
-    approved: false
+    approved: false,
+    lastIdea: "",
+    lastSettings: null
   };
 
   const status = (message, error = false) => {
@@ -16,6 +18,7 @@
   };
 
   const settings = () => ({
+    mode: $("mode").value,
     genre: $("genre").value,
     duration: $("duration").value,
     language: $("language").value,
@@ -48,19 +51,43 @@
       return null;
     }
 
+    const currentSettings = settings();
+
+    if (
+      action === "full" &&
+      (
+        idea !== state.lastIdea ||
+        JSON.stringify(currentSettings) !==
+          JSON.stringify(state.lastSettings)
+      )
+    ) {
+      status("Nagbago ang story o settings. Gumawa muna ng bagong Opening Scene.", true);
+      state.approved = false;
+      return null;
+    }
+
     setBusy(true);
-    status(action === "opening"
-      ? "Ginagawa ang Opening Scene..."
-      : "Ginagawa ang complete drama plan...");
+
+    const modeName = currentSettings.mode === "movie"
+      ? "Full Movie"
+      : "Short Drama";
+
+    status(
+      action === "opening"
+        ? `Creating ${modeName} Opening Scene...`
+        : `Creating complete ${modeName} screenplay...`
+    );
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
           action,
           idea,
-          settings: settings(),
+          settings: currentSettings,
           approved: state.approved,
           opening: state.opening
         })
@@ -69,17 +96,25 @@
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || `Request failed (${response.status})`);
+        throw new Error(
+          data.error || `Request failed (${response.status})`
+        );
       }
 
-      if (!data.text || typeof data.text !== "string") {
+      if (
+        typeof data.text !== "string" ||
+        !data.text.trim()
+      ) {
         throw new Error("Walang valid na AI response.");
       }
 
       return data.text;
 
     } catch (error) {
-      status(error.message || "May error sa AI connection.", true);
+      status(
+        error.message || "May error sa AI connection.",
+        true
+      );
       return null;
 
     } finally {
@@ -89,17 +124,26 @@
 
   async function makeOpening() {
     state.approved = false;
+    state.opening = "";
     state.fullPlan = "";
+
+    $("openingCard").classList.add("hidden");
     $("fullCard").classList.add("hidden");
 
     const text = await requestAI("opening");
+
     if (!text) return;
 
     state.opening = text;
+    state.lastIdea = $("idea").value.trim();
+    state.lastSettings = settings();
+
     $("openingOutput").textContent = text;
     $("openingCard").classList.remove("hidden");
 
-    status("Tapos na! Basahin ang Opening Scene.");
+    status(
+      "Opening Scene ready! Basahin muna bago i-approve."
+    );
   }
 
   $("openingBtn").addEventListener("click", makeOpening);
@@ -112,6 +156,7 @@
     }
 
     state.approved = true;
+
     const text = await requestAI("full");
 
     if (!text) {
@@ -120,10 +165,13 @@
     }
 
     state.fullPlan = text;
+
     $("fullOutput").textContent = text;
     $("fullCard").classList.remove("hidden");
 
-    status("Tapos na ang full drama plan. Text screenplay pa lamang ito.");
+    status(
+      "Complete screenplay generated! Text and video prompts pa lamang ito."
+    );
   });
 
   $("copyBtn").addEventListener("click", async () => {
@@ -131,7 +179,7 @@
 
     try {
       await navigator.clipboard.writeText(state.fullPlan);
-      status("Nakopya ang full drama plan.");
+      status("Nakopya ang screenplay!");
     } catch {
       status("Hindi available ang copy permission.", true);
     }
@@ -150,11 +198,14 @@
 
     link.href = url;
     link.download = "ai-drama-screenplay.txt";
+
     document.body.appendChild(link);
     link.click();
     link.remove();
 
     URL.revokeObjectURL(url);
-    status("Na-download ang screenplay.");
+
+    status("Na-download ang screenplay!");
   });
+
 })();
