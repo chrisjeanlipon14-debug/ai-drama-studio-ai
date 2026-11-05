@@ -1,97 +1,99 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tl">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#100d20">
   <title>AI Drama Studio</title>
-
   <style>
-    * {
-      box-sizing: border-box;
+    :root {
+      color-scheme: dark;
+      font-family: Arial, sans-serif;
+      background: #100d1c;
+      color: #f7f3ff;
     }
+
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
-      padding: 20px;
-      background: #100d20;
-      color: #f5f1ff;
-      font-family: Arial, sans-serif;
-    }
-
-    .container {
-      max-width: 850px;
-      margin: auto;
+      background: linear-gradient(145deg, #171027, #0c0a14);
+      min-height: 100vh;
     }
 
     header {
+      padding: 25px 16px;
       text-align: center;
-      margin-bottom: 28px;
+      background: #1b1430;
+      border-bottom: 1px solid #392653;
     }
 
     header h1 {
-      color: #c7a5ff;
-      margin-bottom: 8px;
+      margin: 0 0 8px;
+      color: #d8b4fe;
+      font-size: 27px;
     }
 
     header p {
-      color: #b9aecf;
-      line-height: 1.5;
+      color: #c7bdd8;
+      margin: 0;
+      font-size: 14px;
+    }
+
+    main {
+      width: min(850px, 94%);
+      margin: 24px auto 50px;
     }
 
     .card {
-      background: #1d1830;
-      border: 1px solid #3b3155;
-      border-radius: 16px;
-      padding: 20px;
+      background: #1b1629;
+      border: 1px solid #3b2c50;
+      border-radius: 15px;
+      padding: 19px;
       margin-bottom: 18px;
     }
 
     h2 {
-      color: #d8c4ff;
-      font-size: 19px;
-      margin-top: 0;
+      color: #d8b4fe;
+      font-size: 20px;
+      margin: 0 0 15px;
     }
+
+    h3 { color: #e9d5ff; }
 
     label {
       display: block;
-      margin: 14px 0 7px;
+      margin: 13px 0 7px;
       font-size: 14px;
-      color: #d6cce7;
+      color: #e5d9f5;
     }
 
     input, select, textarea {
+      display: block;
       width: 100%;
       padding: 12px;
+      border: 1px solid #514064;
       border-radius: 9px;
-      border: 1px solid #51466b;
-      background: #120f20;
+      background: #100d1c;
       color: white;
       font-size: 15px;
     }
 
     textarea {
-      min-height: 120px;
+      min-height: 115px;
       resize: vertical;
-      line-height: 1.5;
     }
 
     button {
-      width: 100%;
-      padding: 14px;
-      border: none;
-      border-radius: 10px;
-      background: #8956d9;
+      border: 0;
+      border-radius: 9px;
+      padding: 12px 17px;
+      margin: 10px 6px 0 0;
+      background: #9333ea;
       color: white;
-      font-size: 15px;
       font-weight: bold;
+      font-size: 14px;
       cursor: pointer;
-      margin-top: 14px;
-    }
-
-    button:hover {
-      background: #a06ce9;
     }
 
     button:disabled {
@@ -99,326 +101,202 @@
       cursor: not-allowed;
     }
 
-    .secondary {
-      background: #41335e;
+    button.secondary { background: #49375f; }
+    button.approve { background: #15803d; }
+
+    .hidden { display: none !important; }
+
+    #status {
+      padding: 12px;
+      margin: 15px 0;
+      border-radius: 9px;
+      background: #211832;
+      color: #d8b4fe;
+      min-height: 42px;
+      overflow-wrap: anywhere;
     }
 
-    .success {
-      background: #247b59;
-    }
-
-    .hidden {
-      display: none !important;
+    #status.error {
+      color: #fca5a5;
+      background: #351923;
     }
 
     .output {
       white-space: pre-wrap;
-      line-height: 1.65;
       overflow-wrap: anywhere;
-      color: #eee7fa;
-      font-size: 14px;
-    }
-
-    #status {
-      padding: 12px;
-      background: #211b35;
+      line-height: 1.65;
+      background: #100d1c;
+      border: 1px solid #382b49;
       border-radius: 9px;
-      color: #cdb5ff;
+      padding: 14px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    .hint {
+      color: #b9abc9;
+      font-size: 13px;
       line-height: 1.5;
-      margin-bottom: 18px;
-    }
-
-    #status.error {
-      color: #ff9999;
-    }
-
-    .note {
-      font-size: 12px;
-      color: #a99dbb;
-      line-height: 1.6;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
     }
 
     .check-row {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-top: 16px;
+      gap: 9px;
+      margin-top: 15px;
     }
 
     .check-row input {
       width: auto;
     }
 
-    .check-row label {
-      margin: 0;
-    }
-
-    video {
+    #videoResult video {
       width: 100%;
-      margin-top: 15px;
-      border-radius: 12px;
+      max-height: 600px;
+      margin-top: 12px;
+      border-radius: 10px;
       background: black;
     }
 
     #videoResult a {
       display: inline-block;
-      color: #d8baff;
+      color: #d8b4fe;
       margin-top: 12px;
+      overflow-wrap: anywhere;
     }
 
     footer {
       text-align: center;
-      color: #81758f;
+      color: #91849f;
+      padding: 20px;
       font-size: 12px;
-      padding: 20px 0;
-    }
-
-    @media (max-width: 550px) {
-      body {
-        padding: 12px;
-      }
-
-      .grid {
-        grid-template-columns: 1fr;
-      }
-
-      .card {
-        padding: 15px;
-      }
     }
   </style>
 </head>
 
 <body>
-<div class="container">
-
   <header>
-    <h1>🎬 AI DRAMA STUDIO</h1>
-    <p>
-      Create original Tagalog dramas, cinematic screenplays
-      and AI-generated video scenes.
-    </p>
+    <h1>🎬 AI Drama Studio</h1>
+    <p>Gumawa ng original na Tagalog drama at cinematic video scenes.</p>
   </header>
 
-  <div id="status">
-    Welcome to AI Drama Studio.
-  </div>
+  <main>
+    <section class="card">
+      <h2>1. Story Settings</h2>
 
-  <section class="card">
-    <h2>1. Story Settings</h2>
+      <label for="mode">Production Type</label>
+      <select id="mode">
+        <option value="short">Short Drama</option>
+        <option value="movie">Full Movie Screenplay</option>
+      </select>
 
-    <label for="mode">Production Mode</label>
-    <select id="mode">
-      <option value="short">Short Drama</option>
-      <option value="movie">Full Movie</option>
-    </select>
+      <label for="genre">Genre</label>
+      <select id="genre">
+        <option value="Drama">Drama</option>
+        <option value="Romance">Romance</option>
+        <option value="Horror">Horror</option>
+        <option value="Family">Family</option>
+        <option value="Fantasy">Fantasy</option>
+        <option value="Comedy">Comedy</option>
+        <option value="Roblox-inspired 3D game story">Roblox-inspired</option>
+      </select>
 
-    <label for="genre">Genre</label>
-    <select id="genre">
-      <option>Love Story</option>
-      <option>Horror</option>
-      <option>Family Drama</option>
-      <option>Revenge</option>
-      <option>Fantasy</option>
-      <option>Comedy</option>
-      <option>Roblox Story</option>
-      <option>Action / Adventure</option>
-      <option>Kids / Animal Learning</option>
-      <option>Inspirational Story</option>
-    </select>
+      <label for="idea">Story Idea</label>
+      <textarea id="idea" placeholder="Ilagay dito ang kuwento na gusto mong gawin..."></textarea>
 
-    <label for="idea">Your Story Idea</label>
-    <textarea
-      id="idea"
-      maxlength="18000"
-      placeholder="Ilagay dito ang kuwento na gusto mong gawin..."
-    ></textarea>
+      <label for="duration">Story Duration</label>
+      <select id="duration">
+        <option value="1 minute">1 minute</option>
+        <option value="3 minutes">3 minutes</option>
+        <option value="5 minutes" selected>5 minutes</option>
+        <option value="10 minutes">10 minutes</option>
+        <option value="20 minutes">20 minutes</option>
+        <option value="30 minutes">30 minutes</option>
+        <option value="60 minutes">60 minutes</option>
+      </select>
 
-    <div class="grid">
-      <div>
-        <label for="duration">Screenplay Duration</label>
-        <select id="duration">
-          <option value="1">1 Minute</option>
-          <option value="3">3 Minutes</option>
-          <option value="5" selected>5 Minutes</option>
-          <option value="10">10 Minutes</option>
-          <option value="20">20 Minutes</option>
-        </select>
+      <label for="language">Language</label>
+      <select id="language">
+        <option value="Tagalog" selected>Tagalog</option>
+        <option value="English">English</option>
+        <option value="Taglish">Taglish</option>
+      </select>
+
+      <label for="visual">Visual Style</label>
+      <select id="visual">
+        <option value="2D Anime">2D Anime</option>
+        <option value="2D Cartoon">2D Cartoon</option>
+        <option value="2D Cinematic Animation">2D Cinematic Animation</option>
+        <option value="3D Cartoon Animation">3D Cartoon Animation</option>
+        <option value="3D Realistic Animation">3D Realistic Animation</option>
+        <option value="3D Cinematic Animation">3D Cinematic Animation</option>
+        <option value="Realistic cinematic human">Realistic Cinematic Human</option>
+        <option value="Roblox-inspired 3D game style">Roblox-inspired 3D</option>
+      </select>
+
+      <label for="aspect">Video Aspect Ratio</label>
+      <select id="aspect">
+        <option value="9:16">9:16 — Reels / TikTok</option>
+        <option value="16:9">16:9 — YouTube</option>
+        <option value="1:1">1:1 — Square</option>
+      </select>
+
+      <button id="openingBtn">Create Opening Scene</button>
+      <div id="status" role="status">Ready. Ilagay ang story idea para magsimula.</div>
+    </section>
+
+    <section id="openingCard" class="card hidden">
+      <h2>2. Opening Scene</h2>
+      <div id="openingOutput" class="output"></div>
+      <button id="reviseBtn" class="secondary">Revise Opening</button>
+      <button id="approveBtn" class="approve">Approve & Create Full Screenplay</button>
+    </section>
+
+    <section id="fullCard" class="card hidden">
+      <h2>3. Full Screenplay</h2>
+      <div id="fullOutput" class="output"></div>
+      <button id="copyBtn" class="secondary">Copy Screenplay</button>
+      <button id="downloadBtn" class="secondary">Download Screenplay</button>
+    </section>
+
+    <section id="videoCard" class="card hidden">
+      <h2>4. Generate Actual Video Scene</h2>
+      <p class="hint">
+        Gumawa muna ng isang video scene. Ang screenplay ay hindi awtomatikong
+        nagiging full movie. Ang bawat video generation ay maaaring may bayad.
+      </p>
+
+      <label for="videoPrompt">Scene Video Prompt</label>
+      <textarea id="videoPrompt" placeholder="Ilagay ang eksaktong eksenang gusto mong gawing video..."></textarea>
+
+      <label for="videoDuration">Clip Duration</label>
+      <select id="videoDuration">
+        <option value="5">5 seconds</option>
+        <option value="10" selected>10 seconds</option>
+        <option value="15">15 seconds</option>
+        <option value="20">20 seconds</option>
+      </select>
+
+      <label for="videoResolution">Resolution</label>
+      <select id="videoResolution">
+        <option value="720p" selected>720p</option>
+        <option value="1080p">1080p</option>
+      </select>
+
+      <div class="check-row">
+        <input id="videoDraft" type="checkbox" checked>
+        <label for="videoDraft" style="margin:0">Draft mode — mas mababang estimated cost</label>
       </div>
 
-      <div>
-        <label for="language">Language</label>
-        <select id="language">
-          <option value="Filipino / natural Tagalog">
-            Filipino / Tagalog
-          </option>
-          <option value="English">English</option>
-        </select>
-      </div>
-    </div>
-
-    <label for="visual">Character / Visual Format</label>
-    <select id="visual">
-      <option value="2D Anime">2D Anime</option>
-      <option value="2D Cartoon">2D Cartoon</option>
-      <option value="2D Cinematic Animation">
-        2D Cinematic Animation
-      </option>
-      <option value="3D Cartoon Animation">
-        3D Cartoon Animation
-      </option>
-      <option value="3D Realistic Animation">
-        3D Realistic Animation
-      </option>
-      <option value="3D Cinematic Animation">
-        3D Cinematic Animation
-      </option>
-      <option value="Realistic cinematic human">
-        Realistic Cinematic Human
-      </option>
-      <option value="Roblox-inspired 3D game style">
-        Roblox 3D
-      </option>
-    </select>
-
-    <label for="aspect">Video Aspect Ratio</label>
-    <select id="aspect">
-      <option value="9:16">9:16 - TikTok / Reels</option>
-      <option value="16:9">16:9 - YouTube / Movie</option>
-      <option value="1:1">1:1 - Square</option>
-    </select>
-
-    <button id="openingBtn">
-      CREATE OPENING SCENE
-    </button>
-
-  </section>
-
-  <section id="openingCard" class="card hidden">
-    <h2>2. Opening Scene</h2>
-
-    <div id="openingOutput" class="output"></div>
-
-    <button id="reviseBtn" class="secondary">
-      REVISE OPENING SCENE
-    </button>
-
-    <button id="approveBtn" class="success">
-      APPROVE & CREATE FULL SCREENPLAY
-    </button>
-  </section>
-
-  <section id="fullCard" class="card hidden">
-    <h2>3. Complete Screenplay</h2>
-
-    <div id="fullOutput" class="output"></div>
-
-    <button id="copyBtn" class="secondary">
-      COPY SCREENPLAY
-    </button>
-
-    <button id="downloadBtn" class="secondary">
-      DOWNLOAD SCREENPLAY
-    </button>
-  </section>
-
-  <section id="videoCard" class="card hidden">
-    <h2>4. Actual Video Generation</h2>
-
-    <p class="note">
-      Piliin ang isang scene prompt mula sa screenplay.
-      Gumawa muna tayo ng isang video clip bago ang full movie assembly.
-    </p>
-
-    <label for="videoPrompt">
-      Scene Video Prompt
-    </label>
-
-    <textarea
-      id="videoPrompt"
-      maxlength="5000"
-      placeholder="I-paste dito ang standalone video-generation prompt ng isang eksena..."
-    ></textarea>
-
-    <div class="grid">
-      <div>
-        <label for="videoDuration">Video Duration</label>
-        <select id="videoDuration">
-          <option value="5">5 Seconds</option>
-          <option value="8">8 Seconds</option>
-          <option value="10">10 Seconds</option>
-          <option value="15">15 Seconds</option>
-          <option value="20">20 Seconds</option>
-        </select>
-      </div>
-
-      <div>
-        <label for="videoResolution">Resolution</label>
-        <select id="videoResolution">
-          <option value="720p">720p</option>
-          <option value="1080p">1080p</option>
-        </select>
-      </div>
-    </div>
-
-    <div class="check-row">
-      <input
-        type="checkbox"
-        id="videoDraft"
-        checked
-      >
-      <label for="videoDraft">
-        Use Draft Mode (Lower Cost)
-      </label>
-    </div>
-
-    <p class="note">
-      Video generation is pay-per-use through Cloudflare Workers AI.
-      Check current pricing before generating.
-      Draft mode is not free.
-    </p>
-
-    <button id="generateVideoBtn">
-      🎥 GENERATE VIDEO
-    </button>
-
-    <div id="videoResult"></div>
-  </section>
+      <button id="generateVideoBtn">Generate Video Scene</button>
+      <div id="videoResult" class="output" style="margin-top:15px"></div>
+    </section>
+  </main>
 
   <footer>
-    AI Drama Studio · Original Stories · Cinematic Production
-    <br>
-    Current version generates one scene clip at a time.
-    Automatic full movie assembly is not yet enabled.
+    AI Drama Studio · Original stories and AI-generated video scenes
   </footer>
 
-</div>
-
-<script src="/chat.js?v=4"></script>
-
-<script>
-  const mode = document.getElementById("mode");
-  const genre = document.getElementById("genre");
-  const visual = document.getElementById("visual");
-
-  genre.addEventListener("change", () => {
-    if (genre.value === "Roblox Story") {
-      visual.value = "Roblox-inspired 3D game style";
-    }
-  });
-
-  mode.addEventListener("change", () => {
-    if (mode.value === "movie") {
-      document.getElementById("duration").value = "20";
-    }
-  });
-</script>
-
+  <script src="/chat.js?v=5" defer></script>
 </body>
 </html>
