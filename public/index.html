@@ -2,379 +2,423 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#100d18">
-<title>AI Drama Studio</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#100d20">
+  <title>AI Drama Studio</title>
 
-<style>
-:root {
-  color-scheme: dark;
-  --bg:#0d0b12;
-  --panel:#191522;
-  --line:#342b40;
-  --text:#f7f2ff;
-  --muted:#b8adbf;
-  --accent:#c7a5ff;
-}
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
-* { box-sizing:border-box; }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #100d20;
+      color: #f5f1ff;
+      font-family: Arial, sans-serif;
+    }
 
-body {
-  margin:0;
-  background:
-    radial-gradient(circle at 80% 0,#302044 0,transparent 35%),
-    var(--bg);
-  color:var(--text);
-  font:15px/1.55 system-ui,Arial,sans-serif;
-}
+    .container {
+      max-width: 850px;
+      margin: auto;
+    }
 
-.wrap {
-  max-width:1000px;
-  margin:auto;
-  padding:22px;
-}
+    header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
 
-.top {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:12px;
-  flex-wrap:wrap;
-  border-bottom:1px solid var(--line);
-  padding:8px 0 18px;
-}
+    header h1 {
+      color: #c7a5ff;
+      margin-bottom: 8px;
+    }
 
-.brand {
-  font-weight:850;
-  letter-spacing:.06em;
-  font-size:19px;
-}
+    header p {
+      color: #b9aecf;
+      line-height: 1.5;
+    }
 
-.brand span { color:var(--accent); }
+    .card {
+      background: #1d1830;
+      border: 1px solid #3b3155;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 18px;
+    }
 
-.pill {
-  border:1px solid var(--line);
-  border-radius:999px;
-  padding:5px 10px;
-  color:var(--muted);
-  font-size:12px;
-}
+    h2 {
+      color: #d8c4ff;
+      font-size: 19px;
+      margin-top: 0;
+    }
 
-h1 {
-  font-size:clamp(30px,6vw,48px);
-  line-height:1.08;
-  margin:28px 0 10px;
-}
+    label {
+      display: block;
+      margin: 14px 0 7px;
+      font-size: 14px;
+      color: #d6cce7;
+    }
 
-h2 {
-  font-size:21px;
-  margin:0 0 12px;
-}
+    input, select, textarea {
+      width: 100%;
+      padding: 12px;
+      border-radius: 9px;
+      border: 1px solid #51466b;
+      background: #120f20;
+      color: white;
+      font-size: 15px;
+    }
 
-p { color:var(--muted); }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+      line-height: 1.5;
+    }
 
-.card {
-  background:linear-gradient(180deg,#1d1827,#15121b);
-  border:1px solid var(--line);
-  border-radius:16px;
-  padding:20px;
-  margin:18px 0;
-}
+    button {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background: #8956d9;
+      color: white;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 14px;
+    }
 
-label {
-  display:block;
-  font-weight:700;
-  margin:14px 0 7px;
-}
+    button:hover {
+      background: #a06ce9;
+    }
 
-textarea,select {
-  width:100%;
-  background:#0e0b13;
-  color:var(--text);
-  border:1px solid #453951;
-  border-radius:10px;
-  padding:13px;
-  font:inherit;
-}
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
 
-textarea {
-  min-height:150px;
-  resize:vertical;
-}
+    .secondary {
+      background: #41335e;
+    }
 
-textarea:focus,select:focus {
-  outline:2px solid #9670d4;
-  border-color:transparent;
-}
+    .success {
+      background: #247b59;
+    }
 
-.grid {
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:12px;
-}
+    .hidden {
+      display: none !important;
+    }
 
-.actions {
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-  margin-top:16px;
-}
+    .output {
+      white-space: pre-wrap;
+      line-height: 1.65;
+      overflow-wrap: anywhere;
+      color: #eee7fa;
+      font-size: 14px;
+    }
 
-button {
-  border:0;
-  border-radius:10px;
-  padding:12px 16px;
-  font-weight:750;
-  cursor:pointer;
-  background:#30263d;
-  color:white;
-}
+    #status {
+      padding: 12px;
+      background: #211b35;
+      border-radius: 9px;
+      color: #cdb5ff;
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
 
-button.primary {
-  background:linear-gradient(135deg,#d4baff,#9870d7);
-  color:#160e20;
-}
+    #status.error {
+      color: #ff9999;
+    }
 
-button:disabled {
-  opacity:.5;
-  cursor:not-allowed;
-}
+    .note {
+      font-size: 12px;
+      color: #a99dbb;
+      line-height: 1.6;
+    }
 
-.status {
-  padding:12px;
-  border-radius:10px;
-  background:#211a2b;
-  color:#e8d9ff;
-  margin:14px 0;
-  white-space:pre-wrap;
-}
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
 
-.status.error {
-  background:#351b20;
-  color:#ffd8dc;
-}
+    .check-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 16px;
+    }
 
-.output {
-  white-space:pre-wrap;
-  overflow-wrap:anywhere;
-  line-height:1.7;
-  color:#f2eaf9;
-}
+    .check-row input {
+      width: auto;
+    }
 
-.hidden { display:none!important; }
+    .check-row label {
+      margin: 0;
+    }
 
-.small {
-  font-size:12px;
-  color:var(--muted);
-}
+    video {
+      width: 100%;
+      margin-top: 15px;
+      border-radius: 12px;
+      background: black;
+    }
 
-.mode-note {
-  background:#211a2b;
-  border:1px solid #443456;
-  border-radius:10px;
-  padding:12px;
-  margin-top:10px;
-  color:#e6d9f8;
-  font-size:13px;
-}
+    #videoResult a {
+      display: inline-block;
+      color: #d8baff;
+      margin-top: 12px;
+    }
 
-@media(max-width:650px) {
-  .wrap { padding:14px; }
-  .grid { grid-template-columns:1fr; }
-  .card { padding:15px; }
-}
-</style>
+    footer {
+      text-align: center;
+      color: #81758f;
+      font-size: 12px;
+      padding: 20px 0;
+    }
+
+    @media (max-width: 550px) {
+      body {
+        padding: 12px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card {
+        padding: 15px;
+      }
+    }
+  </style>
 </head>
 
 <body>
-<main class="wrap">
+<div class="container">
 
-<header class="top">
-  <div class="brand">AI <span>DRAMA</span> STUDIO</div>
-  <div class="pill">CREATOR STUDIO V2</div>
-</header>
+  <header>
+    <h1>🎬 AI DRAMA STUDIO</h1>
+    <p>
+      Create original Tagalog dramas, cinematic screenplays
+      and AI-generated video scenes.
+    </p>
+  </header>
 
-<h1>Bring your story to life.</h1>
-
-<p>
-Create original movies, short dramas, horror stories,
-Roblox adventures and more with AI.
-</p>
-
-<section class="card">
-
-<h2>1. Create Your Drama</h2>
-
-<label for="mode">Production Mode</label>
-
-<select id="mode">
-  <option value="short">Short Drama Episodes</option>
-  <option value="movie">Full Movie</option>
-</select>
-
-<div class="mode-note" id="modeNote">
-  Create short episodes for Facebook Reels,
-  TikTok and YouTube Shorts.
-</div>
-
-<label for="genre">Choose Your Genre</label>
-
-<select id="genre">
-  <option value="Love Story">❤️ Love Story</option>
-  <option value="Horror">👻 Horror</option>
-  <option value="Family Drama">💔 Family Drama</option>
-  <option value="Revenge">🔥 Revenge</option>
-  <option value="Fantasy">✨ Fantasy</option>
-  <option value="Comedy">😂 Comedy</option>
-  <option value="Roblox Story">🎮 Roblox Story</option>
-  <option value="Action / Adventure">⚔️ Action / Adventure</option>
-  <option value="Kids / Animal Learning">🐾 Kids / Animal Learning</option>
-  <option value="Inspirational Story">❤️ Inspirational Story</option>
-</select>
-
-<label for="idea">Story Idea / Blueprint</label>
-
-<textarea
-  id="idea"
-  maxlength="18000"
-  placeholder="Describe your story here. Who are the characters? What happens? What kind of ending do you want?"
-></textarea>
-
-<div class="grid">
-
-  <div>
-    <label for="duration">Video Length</label>
-    <select id="duration">
-      <option value="1">1 minute</option>
-      <option value="3">3 minutes</option>
-      <option value="5" selected>5 minutes</option>
-      <option value="10">10 minutes</option>
-      <option value="20">20 minutes</option>
-    </select>
+  <div id="status">
+    Welcome to AI Drama Studio.
   </div>
 
-  <div>
-    <label for="language">Language</label>
-    <select id="language">
-      <option value="Filipino / natural Tagalog" selected>
-        Filipino / Tagalog
-      </option>
-      <option value="English">English</option>
-    </select>
-  </div>
+  <section class="card">
+    <h2>1. Story Settings</h2>
 
-  <div>
-    <label for="visual">Visual Style</label>
+    <label for="mode">Production Mode</label>
+    <select id="mode">
+      <option value="short">Short Drama</option>
+      <option value="movie">Full Movie</option>
+    </select>
+
+    <label for="genre">Genre</label>
+    <select id="genre">
+      <option>Love Story</option>
+      <option>Horror</option>
+      <option>Family Drama</option>
+      <option>Revenge</option>
+      <option>Fantasy</option>
+      <option>Comedy</option>
+      <option>Roblox Story</option>
+      <option>Action / Adventure</option>
+      <option>Kids / Animal Learning</option>
+      <option>Inspirational Story</option>
+    </select>
+
+    <label for="idea">Your Story Idea</label>
+    <textarea
+      id="idea"
+      maxlength="18000"
+      placeholder="Ilagay dito ang kuwento na gusto mong gawin..."
+    ></textarea>
+
+    <div class="grid">
+      <div>
+        <label for="duration">Screenplay Duration</label>
+        <select id="duration">
+          <option value="1">1 Minute</option>
+          <option value="3">3 Minutes</option>
+          <option value="5" selected>5 Minutes</option>
+          <option value="10">10 Minutes</option>
+          <option value="20">20 Minutes</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="language">Language</label>
+        <select id="language">
+          <option value="Filipino / natural Tagalog">
+            Filipino / Tagalog
+          </option>
+          <option value="English">English</option>
+        </select>
+      </div>
+    </div>
+
+    <label for="visual">Character / Visual Format</label>
     <select id="visual">
+      <option value="2D Anime">2D Anime</option>
+      <option value="2D Cartoon">2D Cartoon</option>
+      <option value="2D Cinematic Animation">
+        2D Cinematic Animation
+      </option>
+      <option value="3D Cartoon Animation">
+        3D Cartoon Animation
+      </option>
+      <option value="3D Realistic Animation">
+        3D Realistic Animation
+      </option>
+      <option value="3D Cinematic Animation">
+        3D Cinematic Animation
+      </option>
       <option value="Realistic cinematic human">
         Realistic Cinematic Human
       </option>
-      <option value="2D animation">2D Animation</option>
-      <option value="3D animation">3D Animation</option>
       <option value="Roblox-inspired 3D game style">
-        Roblox-inspired 3D
+        Roblox 3D
       </option>
     </select>
-  </div>
 
-  <div>
-    <label for="aspect">Video Format</label>
+    <label for="aspect">Video Aspect Ratio</label>
     <select id="aspect">
-      <option value="9:16">Vertical 9:16</option>
-      <option value="16:9">Landscape 16:9</option>
-      <option value="1:1">Square 1:1</option>
+      <option value="9:16">9:16 - TikTok / Reels</option>
+      <option value="16:9">16:9 - YouTube / Movie</option>
+      <option value="1:1">1:1 - Square</option>
     </select>
-  </div>
+
+    <button id="openingBtn">
+      CREATE OPENING SCENE
+    </button>
+
+  </section>
+
+  <section id="openingCard" class="card hidden">
+    <h2>2. Opening Scene</h2>
+
+    <div id="openingOutput" class="output"></div>
+
+    <button id="reviseBtn" class="secondary">
+      REVISE OPENING SCENE
+    </button>
+
+    <button id="approveBtn" class="success">
+      APPROVE & CREATE FULL SCREENPLAY
+    </button>
+  </section>
+
+  <section id="fullCard" class="card hidden">
+    <h2>3. Complete Screenplay</h2>
+
+    <div id="fullOutput" class="output"></div>
+
+    <button id="copyBtn" class="secondary">
+      COPY SCREENPLAY
+    </button>
+
+    <button id="downloadBtn" class="secondary">
+      DOWNLOAD SCREENPLAY
+    </button>
+  </section>
+
+  <section id="videoCard" class="card hidden">
+    <h2>4. Actual Video Generation</h2>
+
+    <p class="note">
+      Piliin ang isang scene prompt mula sa screenplay.
+      Gumawa muna tayo ng isang video clip bago ang full movie assembly.
+    </p>
+
+    <label for="videoPrompt">
+      Scene Video Prompt
+    </label>
+
+    <textarea
+      id="videoPrompt"
+      maxlength="5000"
+      placeholder="I-paste dito ang standalone video-generation prompt ng isang eksena..."
+    ></textarea>
+
+    <div class="grid">
+      <div>
+        <label for="videoDuration">Video Duration</label>
+        <select id="videoDuration">
+          <option value="5">5 Seconds</option>
+          <option value="8">8 Seconds</option>
+          <option value="10">10 Seconds</option>
+          <option value="15">15 Seconds</option>
+          <option value="20">20 Seconds</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="videoResolution">Resolution</label>
+        <select id="videoResolution">
+          <option value="720p">720p</option>
+          <option value="1080p">1080p</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="check-row">
+      <input
+        type="checkbox"
+        id="videoDraft"
+        checked
+      >
+      <label for="videoDraft">
+        Use Draft Mode (Lower Cost)
+      </label>
+    </div>
+
+    <p class="note">
+      Video generation is pay-per-use through Cloudflare Workers AI.
+      Check current pricing before generating.
+      Draft mode is not free.
+    </p>
+
+    <button id="generateVideoBtn">
+      🎥 GENERATE VIDEO
+    </button>
+
+    <div id="videoResult"></div>
+  </section>
+
+  <footer>
+    AI Drama Studio · Original Stories · Cinematic Production
+    <br>
+    Current version generates one scene clip at a time.
+    Automatic full movie assembly is not yet enabled.
+  </footer>
 
 </div>
 
-<div class="actions">
-  <button class="primary" id="openingBtn">
-    Generate Opening Scene
-  </button>
-</div>
-
-<div class="small">
-  Review and approve your opening before generating the complete plan.
-</div>
-
-</section>
-
-<section class="card hidden" id="openingCard">
-
-<h2>2. Opening Scene Preview</h2>
-
-<div id="openingOutput" class="output"></div>
-
-<div class="actions">
-  <button id="reviseBtn">Regenerate Opening</button>
-  <button class="primary" id="approveBtn">
-    Approve & Create Full Plan
-  </button>
-</div>
-
-</section>
-
-<section class="card hidden" id="fullCard">
-
-<h2>3. Complete Drama Plan</h2>
-
-<div id="fullOutput" class="output"></div>
-
-<div class="actions">
-  <button id="copyBtn">Copy Full Plan</button>
-  <button id="downloadBtn">Download Screenplay</button>
-</div>
-
-</section>
-
-<div
-  id="status"
-  class="status"
-  role="status"
-  aria-live="polite"
->
-Ready. Choose your production mode and genre.
-</div>
-
-<p class="small">
-AI screenplay generation is separate from actual video rendering.
-Video provider integration and movie assembly are not yet enabled.
-</p>
-
-</main>
+<script src="/chat.js?v=4"></script>
 
 <script>
-(() => {
   const mode = document.getElementById("mode");
-  const note = document.getElementById("modeNote");
   const genre = document.getElementById("genre");
   const visual = document.getElementById("visual");
 
-  function updateMode() {
-    if (mode.value === "movie") {
-      note.textContent =
-        "Create a complete movie with a beginning, conflict, climax and ending.";
-    } else {
-      note.textContent =
-        "Create short episodes for Facebook Reels, TikTok and YouTube Shorts.";
-    }
-  }
-
-  function updateGenre() {
+  genre.addEventListener("change", () => {
     if (genre.value === "Roblox Story") {
       visual.value = "Roblox-inspired 3D game style";
     }
-  }
+  });
 
-  mode.addEventListener("change", updateMode);
-  genre.addEventListener("change", updateGenre);
-  updateMode();
-})();
+  mode.addEventListener("change", () => {
+    if (mode.value === "movie") {
+      document.getElementById("duration").value = "20";
+    }
+  });
 </script>
-
-<script src="/chat.js" defer></script>
 
 </body>
 </html>
